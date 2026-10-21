@@ -18,26 +18,18 @@ npx wittyhub add github:vercel-labs/agent-skills/deploy-to-vercel
 
 # Install from a repo reference (interactive selection)
 npx wittyhub add gitcode:openeuler/witty-diagnosis-agent
-
-# Or by repo URL + --skill (for exploring repos)
-npx wittyhub add https://gitcode.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
-
 # Install a specific version
 npx wittyhub add gitcode:openeuler/witty-diagnosis-agent --skill system-resource-diagnosis --version v1.0.0
+
+# Or by repo URL
+npx wittyhub add https://gitcode.com/openeuler/witty-diagnosis-agent
+# --skill (for exploring repos)
+npx wittyhub add https://gitcode.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
 ```
 
 > **Tip:** `skill_id` format is `{source}:{owner}/{repo}/{skill_name}`. Omitting the `{source}:` prefix defaults to `github:`.
 
-## Use a Skill Without Installing
-
-Generate a prompt for one skill, or start a supported coding agent interactively:
-
-```bash
-npx wittyhub use vercel-labs/agent-skills@web-design-guidelines | claude
-npx wittyhub use vercel-labs/agent-skills --skill web-design-guidelines --agent claude-code
-```
-
-`wittyhub use` resolves sources the same way as `wittyhub add`, writes the selected skill files to a temporary directory, and prints only the generated prompt to stdout unless `--agent` is provided. With `--agent`, it starts one supported agent interactively with the generated prompt.
+> **Note:** Remote sources (repo URLs, `source:owner/repo`, skill IDs) are resolved through the SkillHub index instead of cloning, so the repository must already be indexed by [SkillHub](https://skillhub.openeuler.org/). Un-indexed repositories report no skills found — install those from a local path instead (`npx wittyhub add ./my-skills`), or submit them to SkillHub first.
 
 ### Source Formats
 
@@ -136,7 +128,6 @@ When installing interactively, you can choose:
 
 | Command                         | Description                                             |
 | ------------------------------- | ------------------------------------------------------- |
-| `npx wittyhub use <source>`     | Use one skill without installing                        |
 | `npx wittyhub list`             | List installed skills (alias: `ls`)                     |
 | `npx wittyhub find [query]`     | Search for skills interactively or by keyword           |
 | `npx wittyhub remove [skills]`  | Remove installed skills from agents                     |

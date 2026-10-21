@@ -12,7 +12,6 @@ This file provides guidance to AI coding agents working on the `wittyhub` CLI co
 | ----------------------------- | --------------------------------------------------- |
 | `wittyhub`                    | Show banner with available commands                 |
 | `wittyhub add <pkg>`          | Install skills from git repos, URLs, or local paths |
-| `wittyhub use <pkg>@<skill>`  | Use one skill without installing                    |
 | `wittyhub experimental_install` | Restore skills from skills-lock.json             |
 | `wittyhub experimental_sync`  | Sync skills from node_modules into agent dirs       |
 | `wittyhub list`               | List installed skills (alias: `ls`)                 |
@@ -64,8 +63,6 @@ src/
 │   ├── mintlify.ts
 │   └── wellknown.ts
 ├── init.test.ts     # Init command tests
-├── use.ts           # Use command - generate a skill prompt or launch an agent
-├── use.test.ts      # Use command tests
 └── test-utils.ts    # Test utilities
 
 tests/
