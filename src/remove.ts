@@ -102,7 +102,12 @@ export function deriveSkillNameFromSource(input: string): string | null {
       // /owner/repo/tree/<ref>/path/to/skill or /group/repo/-/tree/<ref>/path/to/skill
       const treeMatch =
         url.pathname.match(/\/-\/tree\/[^/]+\/(.+)$/) || url.pathname.match(/\/tree\/[^/]+\/(.+)$/);
-      value = treeMatch ? treeMatch[1]! : url.pathname.replace(/^\//, '');
+      if (treeMatch) {
+        // Skill path extracted from a tree URL: the input is already a source,
+        // so return its trailing segment directly.
+        return normalizeCandidate(treeMatch[1]!.split('/').filter(Boolean).pop()!);
+      }
+      value = url.pathname.replace(/^\//, '');
     } catch {
       return null;
     }
@@ -206,15 +211,17 @@ export async function removeCommand(skillNames: string[], options: RemoveOptions
   if (options.all) {
     selectedSkills = installedSkills;
   } else if (skillNames.length > 0) {
-    selectedSkills = installedSkills.filter((s) =>
-      skillNames.some((name) => {
-        // 1. 精确名称匹配
-        if (name.toLowerCase() === s.toLowerCase()) return true;
-        // 2. 从 source 路径提取 skill name 后匹配
-        const extracted = extractSkillName(name);
-        return extracted.toLowerCase() === s.toLowerCase();
-      })
-    );
+    const matches = (name: string, skill: string): boolean => {
+      // 1. 精确名称匹配
+      if (name.toLowerCase() === skill.toLowerCase()) return true;
+      // 2. 从 source 路径提取 skill name 后匹配
+      if (extractSkillName(name).toLowerCase() === skill.toLowerCase()) return true;
+      // 3. owner/repo@skill 等更完整的 source 形式
+      return (deriveSkillNameFromSource(name) ?? '').toLowerCase() === skill.toLowerCase();
+    };
+
+    selectedSkills = installedSkills.filter((s) => skillNames.some((name) => matches(name, s)));
+    const unresolved = skillNames.filter((name) => !installedSkills.some((s) => matches(name, s)));
 
     if (selectedSkills.length === 0) {
       p.log.error(`No matching skills found for: ${skillNames.join(', ')}`);

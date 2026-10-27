@@ -11,7 +11,7 @@ This file provides guidance to AI coding agents working on the `wittyhub` CLI co
 | Command                       | Description                                         |
 | ----------------------------- | --------------------------------------------------- |
 | `wittyhub`                    | Show banner with available commands                 |
-| `wittyhub add <pkg>`          | Install skills from git repos, URLs, or local paths |
+| `wittyhub add <pkg>`          | Install skills from git repos, URLs, or local paths (aliases: `a`, `i`, `install`) |
 | `wittyhub experimental_install` | Restore skills from skills-lock.json             |
 | `wittyhub experimental_sync`  | Sync skills from node_modules into agent dirs       |
 | `wittyhub list`               | List installed skills (alias: `ls`)                 |
