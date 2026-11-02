@@ -288,7 +288,7 @@ export async function validateSkill(absPath: string): Promise<ValidationResult> 
         id: 'category-not-canonical',
         severity: 'warning',
         message: `Category "${fm.category}" is not in the canonical list`,
-        hint: `Valid values: ${[...CANONICAL_CATEGORIES].join(', ')}. See https://gitcode.com/openeuler/openEuler-skills.`,
+        hint: `Valid values: ${[...CANONICAL_CATEGORIES].join(', ')}. See https://atomgit.com/openeuler/openEuler-skills.`,
       });
     }
   }

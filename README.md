@@ -17,14 +17,14 @@ Supports **OpenCode**, **Claude Code**, **Codex**, **Cursor**, and [72 more](#su
 npx wittyhub add github:vercel-labs/agent-skills/deploy-to-vercel
 
 # Install from a repo reference (interactive selection)
-npx wittyhub add gitcode:openeuler/witty-diagnosis-agent
+npx wittyhub add atomgit:openeuler/witty-diagnosis-agent
 # Install a specific version
-npx wittyhub add gitcode:openeuler/witty-diagnosis-agent --skill system-resource-diagnosis --version v1.0.0
+npx wittyhub add atomgit:openeuler/witty-diagnosis-agent --skill system-resource-diagnosis --version v1.0.0
 
 # Or by repo URL
-npx wittyhub add https://gitcode.com/openeuler/witty-diagnosis-agent
+npx wittyhub add https://atomgit.com/openeuler/witty-diagnosis-agent
 # --skill (for exploring repos)
-npx wittyhub add https://gitcode.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
+npx wittyhub add https://atomgit.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
 ```
 
 > **Tip:** `skill_id` format is `{source}:{owner}/{repo}/{skill_name}`. Omitting the `{source}:` prefix defaults to `github:`.
@@ -41,11 +41,11 @@ npx wittyhub add github:vercel-labs/agent-skills/deploy-to-vercel
 
 # Repo reference: source:owner/repo (lists all skills in the repo)
 npx wittyhub add github:vercel-labs/agent-skills
-npx wittyhub add gitcode:openeuler/witty-diagnosis-agent
+npx wittyhub add atomgit:openeuler/witty-diagnosis-agent
 
 # Repo URL (auto-parsed to source:owner/repo)
 npx wittyhub add https://github.com/vercel-labs/agent-skills
-npx wittyhub add https://gitcode.com/openeuler/witty-diagnosis-agent
+npx wittyhub add https://atomgit.com/openeuler/witty-diagnosis-agent
 
 # SSH URL (auto-parsed to source:owner/repo)
 npx wittyhub add git@github.com:vercel-labs/agent-skills.git
@@ -57,7 +57,7 @@ npx wittyhub add https://github.com/vercel-labs/agent-skills/tree/main/skills/we
 npx wittyhub add ./my-local-skills
 ```
 
-Repo URLs from known hosts (`github.com`, `gitcode.com`, `gitlab.com`, `gitee.com`) are automatically
+Repo URLs from known hosts (`github.com`, `atomgit.com`, `gitlab.com`, `gitee.com`) are automatically
 resolved to the `source:owner/repo` reference format, querying the SkillHub index instead of cloning
 the repository.
 
@@ -77,7 +77,7 @@ the repository.
 
 ```bash
 # Install by skill_id (recommended for single skills)
-npx wittyhub add gitcode:openeuler/witty-diagnosis-agent/system-resource-diagnosis
+npx wittyhub add atomgit:openeuler/witty-diagnosis-agent/system-resource-diagnosis
 
 # List all skills in a repository
 npx wittyhub add github:vercel-labs/agent-skills --list
@@ -85,7 +85,7 @@ npx wittyhub add https://github.com/vercel-labs/agent-skills --list
 
 # Install a specific skill from a repo
 npx wittyhub add github:vercel-labs/agent-skills --skill web-design-guidelines
-npx wittyhub add https://gitcode.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
+npx wittyhub add https://atomgit.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
 
 # Install all skills from a repo (interactive selection)
 npx wittyhub add github:vercel-labs/agent-skills
@@ -105,7 +105,7 @@ npx wittyhub add https://github.com/vercel-labs/agent-skills --all
 npx wittyhub add github:vercel-labs/agent-skills --skill '*' -a claude-code
 
 # Install specific skills to all agents
-npx wittyhub add gitcode:openeuler/witty-diagnosis-agent --agent '*' --skill system-resource-diagnosis
+npx wittyhub add atomgit:openeuler/witty-diagnosis-agent --agent '*' --skill system-resource-diagnosis
 ```
 
 ### Installation Scope
@@ -173,7 +173,7 @@ View skill details by `skill_id`. Supports shorthand auto-completion — if you 
 
 ```bash
 # Full skill_id format
-npx wittyhub get gitcode:openeuler/witty-diagnosis-agent/system-resource-diagnosis
+npx wittyhub get atomgit:openeuler/witty-diagnosis-agent/system-resource-diagnosis
 ```
 
 ### `wittyhub audit`
@@ -182,7 +182,7 @@ Show security audit results for a skill. Supports the same `skill_id` format and
 
 ```bash
 # Full skill_id
-npx wittyhub audit gitcode:openeuler/witty-diagnosis-agent/system-resource-diagnosis
+npx wittyhub audit atomgit:openeuler/witty-diagnosis-agent/system-resource-diagnosis
 ```
 
 ### `wittyhub update`

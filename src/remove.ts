@@ -84,7 +84,7 @@ export function deriveSkillNameFromSource(input: string): string | null {
   }
 
   // Drop source aliases and protocol prefixes so the rest parses uniformly.
-  value = value.replace(/^(?:github|gitlab|gitcode):/i, '');
+  value = value.replace(/^(?:github|gitlab|atomgit):/i, '');
 
   // git@host:owner/repo.git//path/to/skill -> owner/repo.git//path/to/skill
   const scpMatch = value.match(/^git@[^:]+:(.+)$/);

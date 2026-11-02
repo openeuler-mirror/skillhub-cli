@@ -1698,7 +1698,7 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
     const skillNameForLookup = options.skill?.[0];
     let skillIds: string[];
 
-    // Normalize repo URLs (https://gitcode.com/owner/repo, git@…, ssh://…)
+    // Normalize repo URLs (https://atomgit.com/owner/repo, git@…, ssh://…)
     // into repo-level refs (source:owner/repo) so they flow through the
     // same list-API path instead of the search API.
     const repoRef = isRepoLevelRef(source) ? source : repoUrlToRef(source);

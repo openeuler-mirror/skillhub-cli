@@ -98,7 +98,7 @@ function showBanner(): void {
     `  ${DIM}$${RESET} ${TEXT}npx wittyhub experimental_sync${RESET}    ${DIM}Sync skills from node_modules${RESET}`
   );
   console.log();
-  console.log(`${DIM}try:${RESET} npx wittyhub add gitcode:openeuler/witty-diagnosis-agent`);
+  console.log(`${DIM}try:${RESET} npx wittyhub add atomgit:openeuler/witty-diagnosis-agent`);
   console.log();
   console.log(`Discover more skills at ${TEXT}https://skillhub.openeuler.org/${RESET}`);
   console.log();
@@ -169,9 +169,9 @@ ${BOLD}Options:${RESET}
   --version, -v     Show version number
 
 ${BOLD}Examples:${RESET}
-  ${DIM}$${RESET} wittyhub add https://gitcode.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
-  ${DIM}$${RESET} wittyhub add https://gitcode.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis -g
-  ${DIM}$${RESET} wittyhub add https://gitcode.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis --agent claude-code cursor
+  ${DIM}$${RESET} wittyhub add https://atomgit.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
+  ${DIM}$${RESET} wittyhub add https://atomgit.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis -g
+  ${DIM}$${RESET} wittyhub add https://atomgit.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis --agent claude-code cursor
   ${DIM}$${RESET} wittyhub remove                        ${DIM}# interactive remove${RESET}
   ${DIM}$${RESET} wittyhub remove web-design             ${DIM}# remove by name${RESET}
   ${DIM}$${RESET} wittyhub rm --global frontend-design
@@ -286,7 +286,7 @@ function runInit(args: string[]): void {
 name: ${skillName}
 description: A brief description of what this skill does
 version: 0.1.0  # optional; increment as needed
-category: others  # optional;change if needed — full list at https://gitcode.com/openeuler/openEuler-skills
+category: others  # optional;change if needed — full list at https://atomgit.com/openeuler/openEuler-skills
 ---
 
 # ${skillName}
@@ -322,7 +322,7 @@ Describe when this skill should be used.
   console.log();
   console.log(`${DIM}Publishing:${RESET}`);
   console.log(
-    `  Submit your skill to ${TEXT}https://gitcode.com/openeuler/openEuler-skills${RESET}`
+    `  Submit your skill to ${TEXT}https://atomgit.com/openeuler/openEuler-skills${RESET}`
   );
   console.log();
   console.log(

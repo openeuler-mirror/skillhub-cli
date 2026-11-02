@@ -53,20 +53,20 @@ describe('searchSkillsAPI', () => {
       json: async () => ({
         results: [
           {
-            skill_id: 'gitcode:vercel/agent-skills/deploy-to-vercel',
+            skill_id: 'atomgit:vercel/agent-skills/deploy-to-vercel',
             name: 'deploy-to-vercel',
             description: 'Deploy to Vercel',
-            source: 'gitcode',
-            source_url: 'https://gitcode.com/vercel/agent-skills.git',
+            source: 'atomgit',
+            source_url: 'https://atomgit.com/vercel/agent-skills.git',
             download_count: 1234,
             risk_score: 85,
           },
           {
-            skill_id: 'gitcode:other/repo/some-skill',
+            skill_id: 'atomgit:other/repo/some-skill',
             name: 'some-skill',
             description: 'Another skill',
-            source: 'gitcode',
-            source_url: 'https://gitcode.com/other/repo.git',
+            source: 'atomgit',
+            source_url: 'https://atomgit.com/other/repo.git',
             download_count: 10,
             risk_score: 15,
           },
@@ -81,12 +81,12 @@ describe('searchSkillsAPI', () => {
     expect(skills).toHaveLength(2);
     expect(skills[0]).toMatchObject({
       name: 'deploy-to-vercel',
-      slug: 'gitcode:vercel/agent-skills/deploy-to-vercel',
-      source: 'gitcode',
+      slug: 'atomgit:vercel/agent-skills/deploy-to-vercel',
+      source: 'atomgit',
       installs: 1234,
       description: 'Deploy to Vercel',
       riskScore: 85,
-      sourceUrl: 'https://gitcode.com/vercel/agent-skills.git',
+      sourceUrl: 'https://atomgit.com/vercel/agent-skills.git',
     });
     // Sorted by installs descending
     expect(skills[0]!.name).toBe('deploy-to-vercel');
@@ -98,20 +98,20 @@ describe('searchSkillsAPI', () => {
       json: async () => ({
         results: [
           {
-            skill_id: 'gitcode:vercel/repo/skills/a',
+            skill_id: 'atomgit:vercel/repo/skills/a',
             name: 'a',
             description: 'a',
-            source: 'gitcode',
-            source_url: 'https://gitcode.com/vercel/repo.git',
+            source: 'atomgit',
+            source_url: 'https://atomgit.com/vercel/repo.git',
             download_count: 10,
             risk_score: 10,
           },
           {
-            skill_id: 'gitcode:other/repo/skills/b',
+            skill_id: 'atomgit:other/repo/skills/b',
             name: 'b',
             description: 'b',
-            source: 'gitcode',
-            source_url: 'https://gitcode.com/other/repo.git',
+            source: 'atomgit',
+            source_url: 'https://atomgit.com/other/repo.git',
             download_count: 20,
             risk_score: 10,
           },
@@ -124,7 +124,7 @@ describe('searchSkillsAPI', () => {
     const { skills } = await searchSkillsAPI('x', 'vercel');
 
     expect(skills).toHaveLength(1);
-    expect(skills[0]!.sourceUrl).toBe('https://gitcode.com/vercel/repo.git');
+    expect(skills[0]!.sourceUrl).toBe('https://atomgit.com/vercel/repo.git');
   });
 
   it('returns an error on non-ok response', async () => {

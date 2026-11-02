@@ -115,11 +115,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://gitcode.com/openeuler/wittyhub-cli.git"
+    "url": "https://atomgit.com/openeuler/wittyhub-cli.git"
   },
-  "homepage": "https://gitcode.com/openeuler/wittyhub-cli",
+  "homepage": "https://atomgit.com/openeuler/wittyhub-cli",
   "bugs": {
-    "url": "https://gitcode.com/openeuler/wittyhub-cli/issues"
+    "url": "https://atomgit.com/openeuler/wittyhub-cli/issues"
   },
   "author": "",
   "license": "MIT",
