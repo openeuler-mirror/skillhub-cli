@@ -60,8 +60,8 @@ npx skillhub-cli add ./my-local-skills
 ```
 
 Repo URLs from known hosts (`github.com`, `atomgit.com`, `gitlab.com`, `gitee.com`) are automatically
-resolved to the `source:owner/repo` reference format, querying the SkillHub index instead of cloning
-the repository.
+resolved to the `source:owner/repo` reference format. Combined with `--skill <name>`, the CLI clones
+the repository and installs the named skill(s) directly; otherwise it queries the SkillHub index.
 
 ### Options
 

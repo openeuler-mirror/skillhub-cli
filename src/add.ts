@@ -7,7 +7,7 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { existsSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { sep, join, dirname, resolve as resolvePath, isAbsolute } from 'node:path';
-import { getOwnerRepo, parseOwnerRepo, isRepoPrivate } from './source-parser.ts';
+import { getOwnerRepo, parseOwnerRepo, isRepoPrivate, parseSource } from './source-parser.ts';
 import { DOWNLOAD_URL, SEARCH_URL } from './config.ts';
 import {
   normalizeSkillId,
@@ -42,7 +42,7 @@ export function getLockSource(parsedUrl: string, normalizedSource: string | null
   const isSSH = parsedUrl.startsWith('git@') || parsedUrl.startsWith('ssh://');
   return isSSH ? parsedUrl : normalizedSource;
 }
-import { cleanupTempDir, GitCloneError } from './git.ts';
+import { cloneRepo, cleanupTempDir, GitCloneError } from './git.ts';
 import { discoverSkills, getSkillDisplayName, filterSkills } from './skills.ts';
 import {
   installSkillForAgent,
@@ -80,12 +80,7 @@ import {
 } from './skill-lock.ts';
 import { addSkillToLocalLock, computeSkillFolderHash } from './local-lock.ts';
 import type { Skill, AgentType, ParsedSource } from './types.ts';
-import {
-  getSkillFolderHashFromTree,
-  fetchRepoTree,
-  type BlobSkill,
-  type BlobInstallResult,
-} from './blob.ts';
+import { getSkillFolderHashFromTree, fetchRepoTree } from './blob.ts';
 import packageJson from '../package.json' with { type: 'json' };
 export function initTelemetry(version: string): void {
   setVersion(version);
@@ -151,6 +146,27 @@ function looksLikeRepoSource(source: string): boolean {
   // owner/repo shorthand: exactly one slash, no colon, no spaces
   const slashCount = (s.match(/\//g) || []).length;
   return slashCount <= 1 && !s.includes(':') && !/\s/.test(s);
+}
+
+/**
+ * 把仓库引用还原成可直接 `git clone` 的 URL。
+ * - `source:owner/repo`（如 atomgit:openeuler/repo）→ https://host/owner/repo.git
+ * - URL / SSH 形式 → 复用 parseSource 规范化（http(s) 会补 `.git` 后缀）
+ */
+function toCloneUrl(source: string): string {
+  if (isRepoLevelRef(source)) {
+    const [sourceType, ownerRepo] = source.split(':', 2) as [string, string];
+    const host: Record<string, string> = {
+      github: 'github.com',
+      atomgit: 'atomgit.com',
+      gitlab: 'gitlab.com',
+      gitee: 'gitee.com',
+    };
+    const h = host[sourceType];
+    if (h) return `https://${h}/${ownerRepo}.git`;
+    return source;
+  }
+  return parseSource(source).url;
 }
 
 interface SearchApiEnvelope {
@@ -451,17 +467,10 @@ function formatList(items: string[], maxShow: number = 5): string {
  * the batch audit endpoint, so both derive the same skill_id server-side.
  * Local-path skills (no repo temp dir) are skipped.
  */
-function buildSkillFiles(
-  selectedSkills: Skill[],
-  tempDir: string | null,
-  blobResult: BlobInstallResult | null
-): Record<string, string> {
+function buildSkillFiles(selectedSkills: Skill[], tempDir: string | null): Record<string, string> {
   const skillFiles: Record<string, string> = {};
   for (const skill of selectedSkills) {
-    if (blobResult && 'repoPath' in skill) {
-      // Blob-based: repoPath is already the repo-relative path (e.g., "skills/react/SKILL.md")
-      skillFiles[skill.name] = (skill as BlobSkill).repoPath;
-    } else if (tempDir && skill.path === tempDir) {
+    if (tempDir && skill.path === tempDir) {
       // Skill is at root level of repo
       skillFiles[skill.name] = 'SKILL.md';
     } else if (tempDir && skill.path.startsWith(tempDir + sep)) {
@@ -1558,6 +1567,173 @@ async function installLocalSkills(
   await promptForFindSkills(options, targetAgents);
 }
 
+interface PreparedSkillSource {
+  skillIds: string[];
+  parsed: ParsedSource;
+  repoPrivacyPromise: Promise<boolean | null>;
+  tempDir: string;
+  repoLevel: boolean;
+  cloneInstall: boolean;
+}
+
+/**
+ * 把 `source` 解析成可安装的 skill 源：clone（add <repo> --skill <name>）或
+ * 通过 SkillHub API 下载归档。返回 skill_id 列表、parsed source、隐私检查
+ * Promise、临时目录，以及后续选择逻辑要用的 repoLevel/cloneInstall 标记。
+ */
+async function prepareSkillSource(
+  source: string,
+  options: AddOptions,
+  spinner: ReturnType<typeof p.spinner>
+): Promise<PreparedSkillSource> {
+  const skillNameForLookup = options.skill?.[0];
+
+  // Normalize repo URLs (https://atomgit.com/owner/repo, git@…, ssh://…)
+  // into repo-level refs (source:owner/repo) so they flow through the
+  // same list-API path instead of the search API.
+  const repoRef = isRepoLevelRef(source) ? source : repoUrlToRef(source);
+  const repoLevel = repoRef !== null;
+
+  // add <repo> --skill <name>：直接 clone 仓库按名安装，收录/未收录的开放
+  // 仓库通用，不依赖 SkillHub 索引的 list/search API。
+  const explicitSkills = (options.skill ?? []).filter((s) => s !== '*');
+  const cloneInstall = repoLevel && explicitSkills.length > 0;
+
+  // clone 安装没有 skill_id（未索引仓库），保持空数组使 audit/遥测跳过。
+  let skillIds: string[] = [];
+  let parsed: ParsedSource;
+  let repoPrivacyPromise: Promise<boolean | null>;
+  let tempDir: string | null = null;
+
+  if (cloneInstall) {
+    const cloneUrl = toCloneUrl(source);
+    const ref = parseSource(source).ref;
+    spinner.start('Cloning repository...');
+    let clonedDir: string;
+    try {
+      clonedDir = await cloneRepo(cloneUrl, ref);
+    } catch (e) {
+      spinner.stop('Clone failed');
+      throw e;
+    }
+    tempDir = clonedDir;
+    spinner.stop('Repository cloned');
+
+    // 记录真实仓库 URL 与 ref（如有）供后续 telemetry / lock 使用。
+    parsed = { type: parseSource(cloneUrl).type, url: cloneUrl, ...(ref ? { ref } : {}) };
+  } else {
+    // For repo-level refs, resolve via list API (no download) and let the
+    // user pick skills *before* downloading anything. This avoids pulling
+    // dozens of archives just to render a selection list.
+    if (repoLevel) {
+      const [sourceType, ownerRepo] = repoRef!.split(':', 2);
+      spinner.start('查询仓库下的技能...');
+      let repoSkills: SkillRef[];
+      try {
+        repoSkills = await listSkillsByRepo(sourceType!, ownerRepo!);
+      } finally {
+        spinner.stop('查询完成');
+      }
+      if (repoSkills.length === 0) {
+        p.outro(pc.red(`仓库 "${source}" 下未找到已收录的技能。`));
+        process.exit(1);
+      }
+
+      // --list: just print from API data, no download.
+      if (options.list) {
+        console.log();
+        p.log.step(pc.bold('Available Skills'));
+        const sorted = [...repoSkills].sort((a, b) => a.name.localeCompare(b.name));
+        for (const skill of sorted) {
+          p.log.message(`  ${pc.cyan(skill.name)}`);
+          if (skill.description) {
+            p.log.message(`    ${pc.dim(skill.description)}`);
+          }
+        }
+        console.log();
+        p.outro('Use --skill <name> to install specific skills');
+        process.exit(0);
+      }
+
+      // --skill: filter by name, download only matched.
+      if (options.skill && !options.skill.includes('*')) {
+        const matched = repoSkills.filter((s) =>
+          options.skill!.some((name) => s.name === name || s.skill_id.endsWith('/' + name))
+        );
+        if (matched.length === 0) {
+          p.outro(pc.red(`未找到匹配 --skill 的技能: ${options.skill.join(', ')}`));
+          process.exit(1);
+        }
+        skillIds = matched.map((s) => s.skill_id);
+      } else if (options.skill?.includes('*') || options.all || options.yes) {
+        // --skill '*' / --all / --yes: install everything.
+        skillIds = repoSkills.map((s) => s.skill_id);
+      } else {
+        // Interactive: pick from API data, then download only selected.
+        const sorted = [...repoSkills].sort((a, b) => a.name.localeCompare(b.name));
+        const choices = sorted.map((s) => ({
+          value: s.skill_id,
+          label: s.name,
+          hint:
+            s.description && s.description.length > 60
+              ? s.description.slice(0, 57) + '...'
+              : (s.description ?? ''),
+        }));
+        const selected = await multiselect({
+          message: 'Select skills to install',
+          options: choices,
+          required: true,
+        });
+        if (p.isCancel(selected)) {
+          p.cancel('Installation cancelled');
+          process.exit(0);
+        }
+        skillIds = selected as string[];
+      }
+    } else {
+      // Non-repo-level: resolve as before.
+      try {
+        const result = await resolveSkillId(source, skillNameForLookup);
+        skillIds = Array.isArray(result) ? result : [result];
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        p.outro(pc.red(message));
+        process.exit(1);
+      }
+    }
+
+    spinner.start(
+      `Downloading ${skillIds.length > 1 ? `${skillIds.length} skills` : `skill ${pc.cyan(skillIds[0]!)}`} from API...`
+    );
+    try {
+      tempDir = await mkdtemp(join(tmpdir(), 'skills-'));
+      for (const id of skillIds) {
+        await downloadAndExtractSkill(id, tempDir, options.version);
+      }
+    } catch (e) {
+      spinner.stop(pc.red('Download failed'));
+      const message = e instanceof Error ? e.message : String(e);
+      p.outro(pc.red(`Failed to download skill: ${message}`));
+      process.exit(1);
+    }
+    spinner.stop(`Skill archive downloaded from ${pc.cyan('API')}`);
+
+    // Synthetic parsed source consumed by downstream telemetry/lock-file logic.
+    // `skillId` is the API skill_id (not a git URL), so getOwnerRepo() returns
+    // null — telemetry gating and lock-file writes are skipped for now.
+    parsed = { type: 'git', url: skillIds[0]! };
+  }
+
+  // GitHub 源提前做隐私检测（与安装并行）；其余源保持 null 以维持原发送语义。
+  const privacyOwnerRepo = getOwnerRepo(parsed);
+  repoPrivacyPromise =
+    parsed.type === 'github' && privacyOwnerRepo
+      ? isSourcePrivate(privacyOwnerRepo).catch(() => null)
+      : Promise.resolve(null);
+
+  return { skillIds, parsed, repoPrivacyPromise, tempDir, repoLevel, cloneInstall };
+}
+
 export async function runAdd(args: string[], options: AddOptions = {}): Promise<void> {
   const source = args[0];
   let installTipShown = false;
@@ -1695,119 +1871,16 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
     //   - repo URL + --skill <name>, e.g.
     //     `add https://github.com/owner/repo --skill foo`
     //     → here we query SEARCH_URL to look up the skill_id.
-    const skillNameForLookup = options.skill?.[0];
-    let skillIds: string[];
-
-    // Normalize repo URLs (https://atomgit.com/owner/repo, git@…, ssh://…)
-    // into repo-level refs (source:owner/repo) so they flow through the
-    // same list-API path instead of the search API.
-    const repoRef = isRepoLevelRef(source) ? source : repoUrlToRef(source);
-    const repoLevel = repoRef !== null;
-
-    // For repo-level refs, resolve via list API (no download) and let the
-    // user pick skills *before* downloading anything. This avoids pulling
-    // dozens of archives just to render a selection list.
-    if (repoLevel) {
-      const [sourceType, ownerRepo] = repoRef!.split(':', 2);
-      spinner.start('查询仓库下的技能...');
-      let repoSkills: SkillRef[];
-      try {
-        repoSkills = await listSkillsByRepo(sourceType!, ownerRepo!);
-      } finally {
-        spinner.stop('查询完成');
-      }
-      if (repoSkills.length === 0) {
-        p.outro(pc.red(`仓库 "${source}" 下未找到已收录的技能。`));
-        process.exit(1);
-      }
-
-      // --list: just print from API data, no download.
-      if (options.list) {
-        console.log();
-        p.log.step(pc.bold('Available Skills'));
-        const sorted = [...repoSkills].sort((a, b) => a.name.localeCompare(b.name));
-        for (const skill of sorted) {
-          p.log.message(`  ${pc.cyan(skill.name)}`);
-          if (skill.description) {
-            p.log.message(`    ${pc.dim(skill.description)}`);
-          }
-        }
-        console.log();
-        p.outro('Use --skill <name> to install specific skills');
-        process.exit(0);
-      }
-
-      // --skill: filter by name, download only matched.
-      if (options.skill && !options.skill.includes('*')) {
-        const matched = repoSkills.filter((s) =>
-          options.skill!.some((name) => s.name === name || s.skill_id.endsWith('/' + name))
-        );
-        if (matched.length === 0) {
-          p.outro(pc.red(`未找到匹配 --skill 的技能: ${options.skill.join(', ')}`));
-          process.exit(1);
-        }
-        skillIds = matched.map((s) => s.skill_id);
-      } else if (options.skill?.includes('*') || options.all || options.yes) {
-        // --skill '*' / --all / --yes: install everything.
-        skillIds = repoSkills.map((s) => s.skill_id);
-      } else {
-        // Interactive: pick from API data, then download only selected.
-        const sorted = [...repoSkills].sort((a, b) => a.name.localeCompare(b.name));
-        const choices = sorted.map((s) => ({
-          value: s.skill_id,
-          label: s.name,
-          hint:
-            s.description && s.description.length > 60
-              ? s.description.slice(0, 57) + '...'
-              : (s.description ?? ''),
-        }));
-        const selected = await multiselect({
-          message: 'Select skills to install',
-          options: choices,
-          required: true,
-        });
-        if (p.isCancel(selected)) {
-          p.cancel('Installation cancelled');
-          process.exit(0);
-        }
-        skillIds = selected as string[];
-      }
-    } else {
-      // Non-repo-level: resolve as before.
-      try {
-        const result = await resolveSkillId(source, skillNameForLookup);
-        skillIds = Array.isArray(result) ? result : [result];
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        p.outro(pc.red(message));
-        process.exit(1);
-      }
-    }
-
-    spinner.start(
-      `Downloading ${skillIds.length > 1 ? `${skillIds.length} skills` : `skill ${pc.cyan(skillIds[0]!)}`} from API...`
-    );
-    try {
-      tempDir = await mkdtemp(join(tmpdir(), 'skills-'));
-      for (const id of skillIds) {
-        await downloadAndExtractSkill(id, tempDir, options.version);
-      }
-    } catch (e) {
-      spinner.stop(pc.red('Download failed'));
-      const message = e instanceof Error ? e.message : String(e);
-      p.outro(pc.red(`Failed to download skill: ${message}`));
-      process.exit(1);
-    }
-    spinner.stop(`Skill archive downloaded from ${pc.cyan('API')}`);
-
-    // Synthetic parsed source consumed by downstream telemetry/lock-file logic.
-    // `skillId` is the API skill_id (not a git URL), so getOwnerRepo() returns
-    // null — telemetry gating and lock-file writes are skipped for now.
-    const parsed: ParsedSource = {
-      type: 'git',
-      url: skillIds[0]!,
-    };
-    const repoPrivacyPromise: Promise<boolean | null> = Promise.resolve(null);
+    // resolve `source` → skill_ids / temp dir：clone（add <repo> --skill <name>）
+    // 或 SkillHub API 下载两条路径已抽到 prepareSkillSource，这里接住结果继续
+    // discover / 选择 / 安装流程。
+    const prepared = await prepareSkillSource(source, options, spinner);
+    const skillIds = prepared.skillIds;
+    const parsed: ParsedSource = prepared.parsed;
+    const repoPrivacyPromise = prepared.repoPrivacyPromise;
+    const repoLevel = prepared.repoLevel;
+    const cloneInstall = prepared.cloneInstall;
+    tempDir = prepared.tempDir;
 
     // Include internal skills when a specific skill is explicitly requested
     // (via --skill). The @skill source syntax is no longer parsed now that
@@ -1815,7 +1888,6 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
     const includeInternal = !!(options.skill && options.skill.length > 0);
 
     let skills: Skill[];
-    let blobResult: BlobInstallResult | null = null;
 
     spinner.start('Discovering skills...');
     skills = await discoverSkills(tempDir, undefined, {
@@ -1832,9 +1904,7 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
       process.exit(1);
     }
 
-    if (!blobResult) {
-      spinner.stop(`Found ${pc.green(skills.length)} skill${skills.length > 1 ? 's' : ''}`);
-    }
+    spinner.stop(`Found ${pc.green(skills.length)} skill${skills.length > 1 ? 's' : ''}`);
 
     if (options.list) {
       // For repo-level refs, --list was already handled above (no download).
@@ -1891,8 +1961,10 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
     let selectedSkills: Skill[];
 
     // For repo-level refs, selection happened before download — install all
-    // discovered skills (only selected ones were downloaded).
-    if (repoLevel) {
+    // discovered skills (only selected ones were downloaded). Clone installs
+    // (add <repo> --skill <name>) discover the whole repo, so selection happens
+    // here via the --skill filter below.
+    if (repoLevel && !cloneInstall) {
       selectedSkills = skills;
       if (skills.length === 1) {
         p.log.info(`Skill: ${pc.cyan(getSkillDisplayName(skills[0]!))}`);
@@ -2382,15 +2454,7 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
       for (const target of installTargets) {
         const { agent, subagent } = target;
         let result;
-        if (blobResult && 'files' in skill) {
-          // Blob-based install: write files from snapshot
-          const blobSkill = skill as BlobSkill;
-          result = await installBlobSkillForAgent(
-            { installName: blobSkill.name, files: blobSkill.files },
-            agent,
-            { global: installGlobally, mode: installMode, eveSubagent: subagent }
-          );
-        } else if (tempDir && skill.path === tempDir && skill.rawContent) {
+        if (tempDir && skill.path === tempDir && skill.rawContent) {
           // Remote root-level SKILL.md: install the skill file, not the whole repository.
           result = await installBlobSkillForAgent(
             { installName: skill.name, files: [{ path: 'SKILL.md', contents: skill.rawContent }] },
@@ -2421,7 +2485,7 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
     const failed = results.filter((r) => !r.success);
     // Track installation result
     // Build skillFiles map: { skillName: relative path to SKILL.md from repo root }
-    const skillFiles = buildSkillFiles(selectedSkills, tempDir, blobResult);
+    const skillFiles = buildSkillFiles(selectedSkills, tempDir);
 
     // Normalize source to owner/repo format for telemetry
     const normalizedSource = getOwnerRepo(parsed);
@@ -2439,16 +2503,6 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
         // For sources without a privacy check, repoPrivacyPromise returns null,
         // so we always send telemetry.
         if (isPrivate === false || (isPrivate === null && parsed.type !== 'github')) {
-          console.log(
-            '[telemetry-debug-1]',
-            JSON.stringify({
-              isPrivate,
-              parsedType: parsed.type,
-              normalizedSource,
-              sourceType: parsed.type,
-              skillFiles: JSON.stringify(skillFiles),
-            })
-          );
           track({
             event: 'install',
             source: normalizedSource,
@@ -2461,15 +2515,6 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
         }
       } else {
         // If we can't parse owner/repo, still send telemetry (for non-GitHub sources)
-        console.log(
-          '[telemetry-debug-2]',
-          JSON.stringify({
-            parsedType: parsed.type,
-            normalizedSource,
-            sourceType: parsed.type,
-            skillFiles: JSON.stringify(skillFiles),
-          })
-        );
         track({
           event: 'install',
           source: normalizedSource,
@@ -2489,7 +2534,7 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
       // For GitHub clone installs, fetch the repo tree once and reuse it
       // for all skills — avoids N sequential API calls that take ~400ms each.
       let cachedTree: Awaited<ReturnType<typeof fetchRepoTree>> | undefined;
-      if (parsed.type === 'github' && !blobResult) {
+      if (parsed.type === 'github') {
         cachedTree = await fetchRepoTree(normalizedSource, parsed.ref, getGitHubToken);
       }
 
@@ -2500,13 +2545,7 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
             let skillFolderHash = '';
             const skillPathValue = skillFiles[skill.name];
 
-            if (blobResult && skillPathValue) {
-              const hash = getSkillFolderHashFromTree(
-                (blobResult as BlobInstallResult).tree,
-                skillPathValue
-              );
-              if (hash) skillFolderHash = hash;
-            } else if (parsed.type === 'github' && skillPathValue && cachedTree) {
+            if (parsed.type === 'github' && skillPathValue && cachedTree) {
               const hash = getSkillFolderHashFromTree(cachedTree, skillPathValue);
               if (hash) skillFolderHash = hash;
             } else if (skillPathValue && tempDir) {
@@ -2546,13 +2585,12 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
         const skillDisplayName = getSkillDisplayName(skill);
         if (successfulSkillNames.has(skillDisplayName)) {
           try {
-            // For blob skills, use the snapshot hash; for disk skills, compute from files
+            // For root SKILL.md remote installs, hash the single file; otherwise
+            // compute from the skill directory on disk.
             const computedHash =
-              blobResult && 'snapshotHash' in skill
-                ? (skill as BlobSkill).snapshotHash
-                : tempDir && skill.path === tempDir && skill.rawContent
-                  ? computeSingleFileSkillHash(skill.rawContent)
-                  : await computeSkillFolderHash(skill.path);
+              tempDir && skill.path === tempDir && skill.rawContent
+                ? computeSingleFileSkillHash(skill.rawContent)
+                : await computeSkillFolderHash(skill.path);
             const skillPathValue = skillFiles[skill.name];
             await addSkillToLocalLock(
               skill.name,
