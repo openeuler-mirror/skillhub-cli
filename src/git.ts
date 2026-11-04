@@ -176,7 +176,7 @@ function buildGitHubAuthError(url: string, repo: GitHubRepoInfo | null, message:
       `GitHub blocked HTTPS access to ${url} because the organization enforces SAML SSO.\n` +
       `  skills tried your existing git credentials and available fallbacks, but none succeeded.\n` +
       `  - Re-authorize your GitHub credentials/app for that org's SSO policy\n` +
-      `  - Or rerun with SSH: npx wittyhub add ${repo.sshUrl}\n` +
+      `  - Or rerun with SSH: npx skillhub-cli add ${repo.sshUrl}\n` +
       `  - Verify access with: gh auth status -h github.com or ssh -T git@github.com`
     );
   }
@@ -185,7 +185,7 @@ function buildGitHubAuthError(url: string, repo: GitHubRepoInfo | null, message:
     return (
       `Authentication failed for ${url}.\n` +
       `  - For private repos, ensure you have access\n` +
-      `  - Retry with SSH: npx wittyhub add ${repo.sshUrl}\n` +
+      `  - Retry with SSH: npx skillhub-cli add ${repo.sshUrl}\n` +
       `  - Check access with: gh auth status -h github.com or ssh -T git@github.com`
     );
   }
@@ -217,7 +217,7 @@ export async function cloneRepo(url: string, ref?: string): Promise<string> {
       throw new GitCloneError(
         `Clone timed out after ${seconds}s. Common causes:\n` +
           `  - Large repository: raise the timeout with SKILLS_CLONE_TIMEOUT_MS=600000 (10m)\n` +
-          `  - Slow network: retry, or clone manually and pass the local path to 'wittyhub add'\n` +
+          `  - Slow network: retry, or clone manually and pass the local path to 'skillhub-cli add'\n` +
           `  - Private repo without credentials: ensure auth is configured\n` +
           `      - For SSH: ssh-add -l (to check loaded keys)\n` +
           `      - For HTTPS: gh auth status (if using GitHub CLI)`,

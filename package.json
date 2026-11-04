@@ -1,10 +1,10 @@
 {
-  "name": "wittyhub",
+  "name": "skillhub-cli",
   "version": "0.0.8",
   "description": "The open agent skills ecosystem",
   "type": "module",
   "bin": {
-    "wittyhub": "bin/cli.mjs",
+    "skillhub-cli": "bin/cli.mjs",
     "add-skill": "bin/cli.mjs"
   },
   "files": [
@@ -115,11 +115,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://atomgit.com/openeuler/wittyhub-cli.git"
+    "url": "https://atomgit.com/openeuler/skillhub-cli.git"
   },
-  "homepage": "https://atomgit.com/openeuler/wittyhub-cli",
+  "homepage": "https://atomgit.com/openeuler/skillhub-cli",
   "bugs": {
-    "url": "https://atomgit.com/openeuler/wittyhub-cli/issues"
+    "url": "https://atomgit.com/openeuler/skillhub-cli/issues"
   },
   "author": "",
   "license": "MIT",

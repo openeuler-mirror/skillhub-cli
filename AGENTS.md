@@ -1,26 +1,26 @@
 # AGENTS.md
 
-This file provides guidance to AI coding agents working on the `wittyhub` CLI codebase.
+This file provides guidance to AI coding agents working on the `skillhub-cli` CLI codebase.
 
 ## Project Overview
 
-`wittyhub` is the CLI for the open agent skills ecosystem.
+`skillhub-cli` is the CLI for the open agent skills ecosystem.
 
 ## Commands
 
 | Command                       | Description                                         |
 | ----------------------------- | --------------------------------------------------- |
-| `wittyhub`                    | Show banner with available commands                 |
-| `wittyhub add <pkg>`          | Install skills from git repos, URLs, or local paths (aliases: `a`, `i`, `install`) |
-| `wittyhub experimental_install` | Restore skills from skills-lock.json             |
-| `wittyhub experimental_sync`  | Sync skills from node_modules into agent dirs       |
-| `wittyhub list`               | List installed skills (alias: `ls`)                 |
-| `wittyhub update [skills...]` | Update skills to latest versions                    |
-| `wittyhub audit <skill_id>` | Show security audit result (risk level + risk signals) |
-| `wittyhub get <skill_id>` | View skill details (author/category/version/description/tags) |
-| `wittyhub init [name]`        | Create a new SKILL.md template                      |
+| `skillhub-cli`                    | Show banner with available commands                 |
+| `skillhub-cli add <pkg>`          | Install skills from git repos, URLs, or local paths (aliases: `a`, `i`, `install`) |
+| `skillhub-cli experimental_install` | Restore skills from skills-lock.json             |
+| `skillhub-cli experimental_sync`  | Sync skills from node_modules into agent dirs       |
+| `skillhub-cli list`               | List installed skills (alias: `ls`)                 |
+| `skillhub-cli update [skills...]` | Update skills to latest versions                    |
+| `skillhub-cli audit <skill_id>` | Show security audit result (risk level + risk signals) |
+| `skillhub-cli get <skill_id>` | View skill details (author/category/version/description/tags) |
+| `skillhub-cli init [name]`        | Create a new SKILL.md template                      |
 
-Aliases: `wittyhub a`, `wittyhub i`, and `wittyhub install` all work as aliases for `add` (install skills from a repo/URL/skill_id). `wittyhub ls` works for `list`. `wittyhub experimental_install` restores skills from `skills-lock.json` — the only command that does; `wittyhub install` without arguments does NOT restore the lock (it errors with "Missing required argument: source"). `wittyhub experimental_sync` crawls `node_modules` for skills.
+Aliases: `skillhub-cli a`, `skillhub-cli i`, and `skillhub-cli install` all work as aliases for `add` (install skills from a repo/URL/skill_id). `skillhub-cli ls` works for `list`. `skillhub-cli experimental_install` restores skills from `skills-lock.json` — the only command that does; `skillhub-cli install` without arguments does NOT restore the lock (it errors with "Missing required argument: source"). `skillhub-cli experimental_sync` crawls `node_modules` for skills.
 
 ## Architecture
 
@@ -83,14 +83,14 @@ tests/
 
 ## Update Checking System
 
-### How `wittyhub check` and `wittyhub update` Work
+### How `skillhub-cli check` and `skillhub-cli update` Work
 
 1. Read `~/.agents/.skill-lock.json` for installed skills
 2. Filter to GitHub-backed skills that have both `skillFolderHash` and `skillPath`
 3. For each skill, call `fetchSkillFolderHash(source, skillPath, token)`. Optional auth token is sourced from `GITHUB_TOKEN`, `GH_TOKEN`, or `gh auth token` to improve rate limits.
 4. `fetchSkillFolderHash` calls GitHub Trees API directly (`/git/trees/<branch>?recursive=1` for `main`, then `master` fallback)
 5. Compare latest folder tree SHA with lock file `skillFolderHash`; mismatch means update available
-6. `wittyhub update` reinstalls changed skills by invoking the current CLI entrypoint directly (`node <repo>/bin/cli.mjs add <source-tree-url> -g -y`) to avoid nested npm exec/npx behavior
+6. `skillhub-cli update` reinstalls changed skills by invoking the current CLI entrypoint directly (`node <repo>/bin/cli.mjs add <source-tree-url> -g -y`) to avoid nested npm exec/npx behavior
 
 ### Lock File Compatibility
 
@@ -102,10 +102,10 @@ If reading an older lock file version, it's wiped. Users must reinstall skills t
 
 | Feature                    | Implementation                                                |
 | -------------------------- | ------------------------------------------------------------- |
-| `wittyhub add`              | `src/add.ts` - full implementation                            |
-| `wittyhub experimental_sync` | `src/sync.ts` - crawl node_modules                           |
-| `wittyhub check`            | `src/cli.ts` + `fetchSkillFolderHash` in `src/skill-lock.ts`  |
-| `wittyhub update`           | `src/cli.ts` direct hash compare + reinstall via `wittyhub add` |
+| `skillhub-cli add`              | `src/add.ts` - full implementation                            |
+| `skillhub-cli experimental_sync` | `src/sync.ts` - crawl node_modules                           |
+| `skillhub-cli check`            | `src/cli.ts` + `fetchSkillFolderHash` in `src/skill-lock.ts`  |
+| `skillhub-cli update`           | `src/cli.ts` direct hash compare + reinstall via `skillhub-cli add` |
 
 ## Development
 
