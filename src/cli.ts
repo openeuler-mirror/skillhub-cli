@@ -148,6 +148,12 @@ ${BOLD}Add Options:${RESET}
   --full-depth           Search all subdirectories even when a root SKILL.md exists
   -v, --version <ver>    Download a specific skill version from skill_versions table
 
+${BOLD}Configuration:${RESET}
+  Backend API URL (used by add/search/download) resolved in priority order:
+    1. ~/.config/skillhub-cli/cli.yaml  api_url
+    2. SKILLS_API_URL env var            (auto-appends /api/v1)
+    3. default: https://skillhub.openeuler.org/api/v1
+
 ${BOLD}Remove Options:${RESET}
   -g, --global           Remove from global scope
   -a, --agent <agents>   Remove from specific agents (use '*' for all agents)
