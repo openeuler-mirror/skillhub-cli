@@ -11,6 +11,7 @@ import {
   formatSourceInput,
   buildUpdateInstallSource,
   buildLocalUpdateSource,
+  resolveSourceUrl,
 } from './update-source.ts';
 import { cloneRepo, cleanupTempDir } from './git.ts';
 import { discoverSkills } from './skills.ts';
@@ -546,7 +547,7 @@ export async function updateProjectSkills(
 
   for (const [source, skillsForSource] of bySource) {
     const firstEntry = skillsForSource[0]!.entry;
-    const sourceUrl = firstEntry.source;
+    const sourceUrl = resolveSourceUrl(firstEntry.source, firstEntry.sourceType);
     const ref = firstEntry.ref;
 
     const allLockedForSource = Object.entries(localLock.skills)
@@ -586,7 +587,10 @@ export async function updateProjectSkills(
     for (const skill of remainingSkills) {
       const safeName = sanitizeMetadata(skill.name);
       console.log(`${TEXT}Updating ${safeName}...${RESET}`);
-      const installUrl = formatSourceInput(skill.entry.source, skill.entry.ref);
+      const installUrl = formatSourceInput(
+        resolveSourceUrl(skill.entry.source, skill.entry.sourceType),
+        skill.entry.ref
+      );
 
       // Preserve Eve subagent placement recorded at install time. The lock stores
       // '' for the root agent, which maps to the `root` keyword for `add --subagent`.

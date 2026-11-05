@@ -3,6 +3,7 @@ import {
   buildLocalUpdateSource,
   buildUpdateInstallSource,
   formatSourceInput,
+  resolveSourceUrl,
 } from './update-source.ts';
 
 describe('update-source', () => {
@@ -116,6 +117,48 @@ describe('update-source', () => {
         skillPath: 'skills/my-skill/SKILL.md',
       });
       expect(result).toBe('https://github.com/owner/repo/skills/my-skill');
+    });
+  });
+
+  describe('resolveSourceUrl', () => {
+    it('restores atomgit shorthand to its clone URL', () => {
+      expect(resolveSourceUrl('openeuler/witty-diagnosis-agent', 'atomgit')).toBe(
+        'https://atomgit.com/openeuler/witty-diagnosis-agent.git'
+      );
+    });
+
+    it('restores github shorthand to its clone URL', () => {
+      expect(resolveSourceUrl('vercel-labs/agent-skills', 'github')).toBe(
+        'https://github.com/vercel-labs/agent-skills.git'
+      );
+    });
+
+    it('restores gitlab shorthand with subgroup to its clone URL', () => {
+      expect(resolveSourceUrl('group/subgroup/repo', 'gitlab')).toBe(
+        'https://gitlab.com/group/subgroup/repo.git'
+      );
+    });
+
+    it('strips a sourceType prefix before rebuilding the URL', () => {
+      expect(resolveSourceUrl('atomgit:openeuler/witty-diagnosis-agent', 'atomgit')).toBe(
+        'https://atomgit.com/openeuler/witty-diagnosis-agent.git'
+      );
+    });
+
+    it('keeps full HTTPS URLs unchanged', () => {
+      expect(resolveSourceUrl('https://atomgit.com/owner/repo.git', 'atomgit')).toBe(
+        'https://atomgit.com/owner/repo.git'
+      );
+    });
+
+    it('keeps SSH URLs unchanged', () => {
+      expect(resolveSourceUrl('git@gitlab.com:owner/repo.git', 'gitlab')).toBe(
+        'git@gitlab.com:owner/repo.git'
+      );
+    });
+
+    it('keeps unknown source types unchanged', () => {
+      expect(resolveSourceUrl('owner/repo', 'git')).toBe('owner/repo');
     });
   });
 });
