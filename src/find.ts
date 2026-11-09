@@ -67,6 +67,13 @@ export interface SearchResult {
 
 export interface FindOptions {
   owner?: string;
+  category?: string;
+  tags?: string;
+  platform?: string;
+  risk?: string;
+  sort?: 'relevance' | 'download_count' | 'updated_at';
+  limit?: number;
+  mode?: 'text' | 'semantic' | 'hybrid';
 }
 
 export interface ParseFindOptionsResult {
@@ -76,50 +83,169 @@ export interface ParseFindOptionsResult {
 }
 
 const GITHUB_OWNER_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,38})$/i;
+const SORT_BY_VALUES = ['relevance', 'download_count', 'updated_at'] as const;
+const MODE_VALUES = ['text', 'semantic', 'hybrid'] as const;
+
+// 需要跟一个取值的选项（支持 `--key value` 与 `--key=value` 两种形式）
+const VALUE_OPTIONS: ReadonlySet<string> = new Set([
+  '--owner',
+  '--category',
+  '--tag',
+  '--platform',
+  '--risk',
+  '--sort',
+  '--limit',
+  '--mode',
+]);
+
+// 逗号分隔的多值选项统一转小写、去空白，返回逗号拼接串
+function toLowerList(value: string): string {
+  return value
+    .split(',')
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean)
+    .join(',');
+}
 
 export function parseFindOptions(args: string[]): ParseFindOptionsResult {
   const queryParts: string[] = [];
   const options: FindOptions = {};
   const errors: string[] = [];
 
+  const applyValueOption = (key: string, rawValue: string): void => {
+    switch (key) {
+      case '--owner': {
+        const owner = rawValue.trim().toLowerCase();
+        if (!owner) {
+          errors.push('--owner requires an owner');
+          return;
+        }
+        if (!GITHUB_OWNER_PATTERN.test(owner)) {
+          errors.push('--owner must be a valid owner');
+          return;
+        }
+        options.owner = owner;
+        return;
+      }
+      case '--category': {
+        const value = toLowerList(rawValue);
+        if (!value) {
+          errors.push('--category requires a value');
+          return;
+        }
+        options.category = value;
+        return;
+      }
+      case '--tag': {
+        const value = toLowerList(rawValue);
+        if (!value) {
+          errors.push('--tag requires a value');
+          return;
+        }
+        options.tags = value;
+        return;
+      }
+      case '--platform': {
+        const value = toLowerList(rawValue);
+        if (!value) {
+          errors.push('--platform requires a value');
+          return;
+        }
+        options.platform = value;
+        return;
+      }
+      case '--risk': {
+        const value = toLowerList(rawValue);
+        if (!value) {
+          errors.push('--risk requires a value');
+          return;
+        }
+        options.risk = value;
+        return;
+      }
+      case '--sort': {
+        const value = rawValue.trim().toLowerCase();
+        if (!(SORT_BY_VALUES as readonly string[]).includes(value)) {
+          errors.push('--sort must be one of: relevance, download_count, updated_at');
+          return;
+        }
+        options.sort = value as FindOptions['sort'];
+        return;
+      }
+      case '--limit': {
+        const number = Number(rawValue.trim());
+        if (!Number.isInteger(number) || number < 1 || number > 100) {
+          errors.push('--limit must be a number between 1 and 100');
+          return;
+        }
+        options.limit = number;
+        return;
+      }
+      case '--mode': {
+        const value = rawValue.trim().toLowerCase();
+        if (!(MODE_VALUES as readonly string[]).includes(value)) {
+          errors.push('--mode must be one of: text, semantic, hybrid');
+          return;
+        }
+        options.mode = value as FindOptions['mode'];
+        return;
+      }
+      default:
+        return;
+    }
+  };
+
   for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
+    const arg = args[i]!;
     if (!arg) continue;
 
-    let ownerValue: string | undefined;
-    if (arg === '--owner') {
-      const value = args[i + 1];
-      if (!value || value.startsWith('-')) {
-        errors.push('--owner requires an owner');
+    // `--key=value` 形式（仅对已知取值选项生效）
+    const eq = arg.indexOf('=');
+    if (arg.startsWith('--') && eq > 2) {
+      const key = arg.slice(0, eq);
+      if (VALUE_OPTIONS.has(key)) {
+        applyValueOption(key, arg.slice(eq + 1));
         continue;
       }
-      ownerValue = value;
-      i++;
-    } else if (arg.startsWith('--owner=')) {
-      ownerValue = arg.slice('--owner='.length);
-      if (!ownerValue) {
-        errors.push('--owner requires an owner');
-        continue;
-      }
-    } else {
       queryParts.push(arg);
       continue;
     }
 
-    const owner = ownerValue.trim().toLowerCase();
-    if (!GITHUB_OWNER_PATTERN.test(owner)) {
-      errors.push('--owner must be a valid owner');
+    // `--key value` 形式
+    if (VALUE_OPTIONS.has(arg)) {
+      const value = args[i + 1];
+      if (value && !value.startsWith('-')) {
+        applyValueOption(arg, value);
+        i++;
+      } else {
+        // 缺值或后跟另一个选项：交给 applyValueOption 用空值触发各自的错误
+        applyValueOption(arg, '');
+      }
       continue;
     }
-    options.owner = owner;
+
+    // 普通词或未知 `--xxx`（保持原行为，视为搜索词）
+    queryParts.push(arg);
   }
 
   return { query: queryParts.join(' '), options, errors };
 }
 
 // 通过后端搜索接口查询技能
-export async function searchSkillsAPI(query: string, owner?: string): Promise<SearchResult> {
-  const params = new URLSearchParams({ q: query, limit: '10', mode: 'text' });
+export async function searchSkillsAPI(
+  query: string,
+  options: FindOptions = {}
+): Promise<SearchResult> {
+  const params = new URLSearchParams({
+    q: query,
+    limit: String(options.limit ?? 10),
+    mode: options.mode ?? 'text',
+  });
+  if (options.category) params.set('category', options.category);
+  if (options.tags) params.set('tags', options.tags);
+  if (options.platform) params.set('platform', options.platform);
+  if (options.risk) params.set('security_level', options.risk);
+  if (options.sort) params.set('sort_by', options.sort);
   const url = `${SEARCH_URL}?${params.toString()}`;
 
   let res: Response;
@@ -179,6 +305,7 @@ export async function searchSkillsAPI(query: string, owner?: string): Promise<Se
   }));
 
   // 后端接口不支持 owner 过滤，这里在客户端按 source_url 中的 owner 过滤
+  const owner = options.owner;
   if (owner) {
     const ownerLower = owner.toLowerCase();
     skills = skills.filter((skill) => {
@@ -195,7 +322,12 @@ export async function searchSkillsAPI(query: string, owner?: string): Promise<Se
     });
   }
 
-  return { skills: skills.sort((a, b) => (b.installs || 0) - (a.installs || 0)) };
+  // 排序：用户显式指定 --sort 时信任后端排序，否则保持安装数降序
+  if (!options.sort) {
+    skills = skills.sort((a, b) => (b.installs || 0) - (a.installs || 0));
+  }
+
+  return { skills };
 }
 
 // ANSI escape codes for terminal control
@@ -206,7 +338,10 @@ const MOVE_UP = (n: number) => `\x1b[${n}A`;
 const MOVE_TO_COL = (n: number) => `\x1b[${n}G`;
 
 // Custom fzf-style search prompt using raw readline
-async function runSearchPrompt(initialQuery = '', owner?: string): Promise<SearchSkill | null> {
+async function runSearchPrompt(
+  initialQuery = '',
+  options: FindOptions = {}
+): Promise<SearchSkill | null> {
   let results: SearchSkill[] = [];
   let selectedIndex = 0;
   let query = initialQuery;
@@ -326,7 +461,7 @@ async function runSearchPrompt(initialQuery = '', owner?: string): Promise<Searc
 
     debounceTimer = setTimeout(async () => {
       try {
-        const result = await searchSkillsAPI(q, owner);
+        const result = await searchSkillsAPI(q, options);
         results = result.skills;
         searchError = result.error ?? null;
         selectedIndex = 0;
@@ -414,18 +549,18 @@ export async function runFind(args: string[]): Promise<void> {
   const owner = findOptions.owner;
   const isNonInteractive = !process.stdin.isTTY;
   const agentTip = `${DIM}Tip: if running in a coding agent, follow these steps:${RESET}
-${DIM}  1) npx skillhub-cli find [query] [--owner <owner>]${RESET}
+${DIM}  1) npx skillhub-cli find [query] [options]${RESET}
 ${DIM}  2) npx skillhub-cli add <skill_id>${RESET}`;
 
   if (errors.length > 0) {
     for (const error of errors) console.error(error);
-    console.error('Usage: npx skillhub-cli find <query> [--owner <owner>]');
+    console.error('Usage: npx skillhub-cli find <query> [options]');
     return;
   }
 
   // Non-interactive mode: just print results and exit
   if (query) {
-    const { skills: results, error: searchError } = await searchSkillsAPI(query, owner);
+    const { skills: results, error: searchError } = await searchSkillsAPI(query, findOptions);
 
     // Track telemetry for non-interactive search
     track({
@@ -476,11 +611,11 @@ ${DIM}  2) npx skillhub-cli add <skill_id>${RESET}`;
   if (isNonInteractive || (await isRunningInAgent())) {
     console.log(agentTip);
     console.log();
-    console.log(`${DIM}Usage: npx skillhub-cli find <query> [--owner <owner>]${RESET}`);
+    console.log(`${DIM}Usage: npx skillhub-cli find <query> [options]${RESET}`);
     return;
   }
 
-  const selected = await runSearchPrompt('', owner);
+  const selected = await runSearchPrompt('', findOptions);
 
   // Track telemetry for interactive search
   track({

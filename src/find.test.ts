@@ -28,6 +28,56 @@ describe('parseFindOptions', () => {
       '--owner must be a valid owner',
     ]);
   });
+
+  it('parses category/tag/platform/risk/sort/limit options', () => {
+    expect(
+      parseFindOptions([
+        'network',
+        '--category',
+        'Monitoring, Security',
+        '--tag=kubernetes,linux',
+        '--platform',
+        'community',
+        '--risk',
+        'low,medium',
+        '--sort',
+        'updated_at',
+        '--limit',
+        '25',
+      ])
+    ).toEqual({
+      query: 'network',
+      options: {
+        category: 'monitoring,security',
+        tags: 'kubernetes,linux',
+        platform: 'community',
+        risk: 'low,medium',
+        sort: 'updated_at',
+        limit: 25,
+      },
+      errors: [],
+    });
+  });
+
+  it('rejects invalid sort and out-of-range limit', () => {
+    expect(parseFindOptions(['--sort', 'name']).errors).toEqual([
+      '--sort must be one of: relevance, download_count, updated_at',
+    ]);
+    expect(parseFindOptions(['--limit', '0']).errors).toEqual([
+      '--limit must be a number between 1 and 100',
+    ]);
+  });
+
+  it('parses --mode and rejects invalid values', () => {
+    expect(parseFindOptions(['诊断', '--mode', 'semantic'])).toEqual({
+      query: '诊断',
+      options: { mode: 'semantic' },
+      errors: [],
+    });
+    expect(parseFindOptions(['x', '--mode', 'fuzzy']).errors).toEqual([
+      '--mode must be one of: text, semantic, hybrid',
+    ]);
+  });
 });
 
 describe('searchSkillsAPI', () => {
@@ -121,7 +171,7 @@ describe('searchSkillsAPI', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { skills } = await searchSkillsAPI('x', 'vercel');
+    const { skills } = await searchSkillsAPI('x', { owner: 'vercel' });
 
     expect(skills).toHaveLength(1);
     expect(skills[0]!.sourceUrl).toBe('https://atomgit.com/vercel/repo.git');
@@ -145,5 +195,65 @@ describe('searchSkillsAPI', () => {
       skills: [],
       error: expect.any(String),
     });
+  });
+
+  it('passes filters and sort to the backend', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [], total: 0 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await searchSkillsAPI('k8s', {
+      category: 'network',
+      tags: 'linux',
+      platform: 'community',
+      risk: 'low',
+      sort: 'updated_at',
+      limit: 20,
+    });
+
+    const url = new URL(fetchMock.mock.calls[0]![0] as string);
+    expect(url.searchParams.get('category')).toBe('network');
+    expect(url.searchParams.get('tags')).toBe('linux');
+    expect(url.searchParams.get('platform')).toBe('community');
+    expect(url.searchParams.get('security_level')).toBe('low');
+    expect(url.searchParams.get('sort_by')).toBe('updated_at');
+    expect(url.searchParams.get('limit')).toBe('20');
+  });
+
+  it('keeps backend order when sort is specified', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          { skill_id: 'a', name: 'a', download_count: 1, risk_score: 10 },
+          { skill_id: 'b', name: 'b', download_count: 99, risk_score: 10 },
+        ],
+        total: 2,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { skills } = await searchSkillsAPI('x', { sort: 'relevance' });
+
+    // 后端已按相关性排序，客户端不重排，保持返回顺序
+    expect(skills.map((s) => s.name)).toEqual(['a', 'b']);
+  });
+
+  it('passes semantic mode to the backend and defaults to text', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [], total: 0 }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await searchSkillsAPI('x', { mode: 'semantic' });
+    let url = new URL(fetchMock.mock.calls[0]![0] as string);
+    expect(url.searchParams.get('mode')).toBe('semantic');
+
+    await searchSkillsAPI('x');
+    url = new URL(fetchMock.mock.calls[1]![0] as string);
+    expect(url.searchParams.get('mode')).toBe('text');
   });
 });
