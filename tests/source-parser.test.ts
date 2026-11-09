@@ -237,50 +237,50 @@ describe('parseSource', () => {
   });
 
   describe('Git URL fallback tests', () => {
-    it('GitCode URL - basic repo page becomes git source', () => {
-      const result = parseSource('https://gitcode.com/leon-wang2021/aet');
-      expect(result.type).toBe('gitcode');
-      expect(result.url).toBe('https://gitcode.com/leon-wang2021/aet.git');
+    it('AtomGit URL - basic repo page becomes git source', () => {
+      const result = parseSource('https://atomgit.com/leon-wang2021/aet');
+      expect(result.type).toBe('atomgit');
+      expect(result.url).toBe('https://atomgit.com/leon-wang2021/aet.git');
       expect(result.ref).toBeUndefined();
     });
 
-    it('GitCode URL - keeps existing .git suffix', () => {
-      const result = parseSource('https://gitcode.com/leon-wang2021/aet.git');
-      expect(result.type).toBe('gitcode');
-      expect(result.url).toBe('https://gitcode.com/leon-wang2021/aet.git');
+    it('AtomGit URL - keeps existing .git suffix', () => {
+      const result = parseSource('https://atomgit.com/leon-wang2021/aet.git');
+      expect(result.type).toBe('atomgit');
+      expect(result.url).toBe('https://atomgit.com/leon-wang2021/aet.git');
     });
 
-    it('GitCode URL - with #branch', () => {
-      const result = parseSource('https://gitcode.com/leon-wang2021/aet#feature/ui');
-      expect(result.type).toBe('gitcode');
-      expect(result.url).toBe('https://gitcode.com/leon-wang2021/aet.git');
+    it('AtomGit URL - with #branch', () => {
+      const result = parseSource('https://atomgit.com/leon-wang2021/aet#feature/ui');
+      expect(result.type).toBe('atomgit');
+      expect(result.url).toBe('https://atomgit.com/leon-wang2021/aet.git');
       expect(result.ref).toBe('feature/ui');
     });
 
-    it('GitCode URL - tree with branch only', () => {
-      const result = parseSource('https://gitcode.com/openeuler/witty-diagnosis-agent/tree/master');
-      expect(result.type).toBe('gitcode');
-      expect(result.url).toBe('https://gitcode.com/openeuler/witty-diagnosis-agent.git');
+    it('AtomGit URL - tree with branch only', () => {
+      const result = parseSource('https://atomgit.com/openeuler/witty-diagnosis-agent/tree/master');
+      expect(result.type).toBe('atomgit');
+      expect(result.url).toBe('https://atomgit.com/openeuler/witty-diagnosis-agent.git');
       expect(result.ref).toBe('master');
       expect(result.subpath).toBeUndefined();
     });
 
-    it('GitCode URL - tree with branch and path', () => {
+    it('AtomGit URL - tree with branch and path', () => {
       const result = parseSource(
-        'https://gitcode.com/openeuler/witty-diagnosis-agent/tree/master/skills'
+        'https://atomgit.com/openeuler/witty-diagnosis-agent/tree/master/skills'
       );
-      expect(result.type).toBe('gitcode');
-      expect(result.url).toBe('https://gitcode.com/openeuler/witty-diagnosis-agent.git');
+      expect(result.type).toBe('atomgit');
+      expect(result.url).toBe('https://atomgit.com/openeuler/witty-diagnosis-agent.git');
       expect(result.ref).toBe('master');
       expect(result.subpath).toBe('skills');
     });
 
-    it('GitCode URL - tree with nested path', () => {
+    it('AtomGit URL - tree with nested path', () => {
       const result = parseSource(
-        'https://gitcode.com/openeuler/witty-diagnosis-agent/tree/master/skills/ui-ux-pro-max'
+        'https://atomgit.com/openeuler/witty-diagnosis-agent/tree/master/skills/ui-ux-pro-max'
       );
-      expect(result.type).toBe('gitcode');
-      expect(result.url).toBe('https://gitcode.com/openeuler/witty-diagnosis-agent.git');
+      expect(result.type).toBe('atomgit');
+      expect(result.url).toBe('https://atomgit.com/openeuler/witty-diagnosis-agent.git');
       expect(result.ref).toBe('master');
       expect(result.subpath).toBe('skills/ui-ux-pro-max');
     });
@@ -376,8 +376,8 @@ describe('getOwnerRepo', () => {
     expect(getOwnerRepo(parsed)).toBe('owner/repo');
   });
 
-  it('getOwnerRepo - GitCode URL extracts owner/repo', () => {
-    const parsed = parseSource('https://gitcode.com/leon-wang2021/aet');
+  it('getOwnerRepo - AtomGit URL extracts owner/repo', () => {
+    const parsed = parseSource('https://atomgit.com/leon-wang2021/aet');
     expect(getOwnerRepo(parsed)).toBe('leon-wang2021/aet');
   });
 

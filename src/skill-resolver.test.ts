@@ -3,8 +3,8 @@ import { normalizeSkillId, buildSkillId } from './skill-resolver.ts';
 
 describe('normalizeSkillId', () => {
   it('passes through full skill ids with a source type prefix', () => {
-    expect(normalizeSkillId('gitcode:vercel/agent-skills/.skills/deploy-to-vercel')).toBe(
-      'gitcode:vercel/agent-skills/.skills/deploy-to-vercel'
+    expect(normalizeSkillId('atomgit:vercel/agent-skills/.skills/deploy-to-vercel')).toBe(
+      'atomgit:vercel/agent-skills/.skills/deploy-to-vercel'
     );
     expect(normalizeSkillId('github:vercel-labs/agent-skills/skills/deploy-to-vercel')).toBe(
       'github:vercel-labs/agent-skills/skills/deploy-to-vercel'

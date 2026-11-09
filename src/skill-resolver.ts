@@ -6,7 +6,7 @@ import { LIST_URL } from './config.ts';
 // 例如：github:vercel-labs/agent-skills/skills/deploy-to-vercel
 
 /** 后端支持的 source_type 前缀，作为完整 skill_id 的识别依据 */
-const SOURCE_TYPE_PREFIXES = ['github', 'gitcode', 'gitlab', 'gitee'];
+const SOURCE_TYPE_PREFIXES = ['github', 'atomgit', 'gitlab', 'gitee'];
 
 /**
  * 归一化技能标识：完整 skill_id（带 source_type: 前缀）原样透传，
@@ -84,7 +84,7 @@ export function isRepoLevelRef(input: string): boolean {
 /** 域名 → source_type 映射 */
 const HOST_TO_SOURCE_TYPE: Record<string, string> = {
   'github.com': 'github',
-  'gitcode.com': 'gitcode',
+  'atomgit.com': 'atomgit',
   'gitlab.com': 'gitlab',
   'gitee.com': 'gitee',
 };
@@ -92,9 +92,9 @@ const HOST_TO_SOURCE_TYPE: Record<string, string> = {
 /**
  * 把仓库 URL / owner-repo 简写解析为仓库级引用（source:owner/repo）。
  * 支持：
- *   - https://gitcode.com/owner/repo
+ *   - https://atomgit.com/owner/repo
  *   - http://github.com/owner/repo.git
- *   - git@gitcode.com:owner/repo
+ *   - git@atomgit.com:owner/repo
  *   - ssh://git@github.com/owner/repo
  * 无法识别（如本地路径、未知域名、多级路径）时返回 null。
  */

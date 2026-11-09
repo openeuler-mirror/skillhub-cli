@@ -67,7 +67,7 @@ function appendFolderAndRef(source: string, skillPath: string, ref?: string): st
 }
 
 /**
- * Build the source argument for `wittyhub add` during update.
+ * Build the source argument for `skillhub-cli add` during update.
  * Uses shorthand form for path-targeted updates to avoid branch/path ambiguity.
  */
 export function buildUpdateInstallSource(entry: UpdateSourceEntry): string {
@@ -78,7 +78,7 @@ export function buildUpdateInstallSource(entry: UpdateSourceEntry): string {
 }
 
 /**
- * Build the source argument for `wittyhub add` during project-level update.
+ * Build the source argument for `skillhub-cli add` during project-level update.
  * Local lock entries don't carry `sourceUrl`, so we fall back to the bare
  * `source` identifier when no `skillPath` is available.
  */
@@ -87,4 +87,26 @@ export function buildLocalUpdateSource(entry: LocalUpdateSourceEntry): string {
     return formatSourceInput(entry.source, entry.ref);
   }
   return appendFolderAndRef(entry.source, entry.skillPath, entry.ref);
+}
+
+const SOURCE_TYPE_HOST: Record<string, string> = {
+  github: 'github.com',
+  atomgit: 'atomgit.com',
+  gitlab: 'gitlab.com',
+  gitee: 'gitee.com',
+};
+
+/**
+ * 把 `owner/repo` 短名按 sourceType 还原成可直接 `git clone` 的 HTTPS URL。
+ * local lock 只存了 source 短名 + sourceType，缺 host 信息，短名无法被
+ * git/source-parser 正确解析（短名会被默认当成 GitHub），因此 update 时需要
+ * 借 sourceType 还原 host。完整 URL、SSH（git@/ssh://）或未知 sourceType 原样返回。
+ */
+export function resolveSourceUrl(source: string, sourceType: string): string {
+  const host = SOURCE_TYPE_HOST[sourceType];
+  if (!host) return source;
+  if (/^(https?:\/\/|git@|ssh:\/\/|git:\/\/)/.test(source)) return source;
+  const prefixed = source.includes(':') ? source.slice(source.indexOf(':') + 1) : source;
+  const repo = prefixed.replace(/\.git$/, '');
+  return `https://${host}/${repo}.git`;
 }

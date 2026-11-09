@@ -3,7 +3,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { parse as parseYaml } from 'yaml';
 
-const CLI_CONFIG_PATH = join(homedir(), '.config', 'wittyhub', 'cli.yaml');
+const CLI_CONFIG_PATH = join(homedir(), '.config', 'skillhub-cli', 'cli.yaml');
 
 export interface CliConfig {
   api_url?: string;

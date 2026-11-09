@@ -11,6 +11,7 @@ import {
   formatSourceInput,
   buildUpdateInstallSource,
   buildLocalUpdateSource,
+  resolveSourceUrl,
 } from './update-source.ts';
 import { cloneRepo, cleanupTempDir } from './git.ts';
 import { discoverSkills } from './skills.ts';
@@ -217,7 +218,7 @@ export function printSkippedSkills(skipped: SkippedSkill[]): void {
       const names = skills.map((s) => sanitizeMetadata(s.name)).join(', ');
       console.log(`  ${TEXT}•${RESET} ${names} ${DIM}(${reason})${RESET}`);
     }
-    console.log(`    ${DIM}To update: ${TEXT}npx wittyhub add ${source} -g -y${RESET}`);
+    console.log(`    ${DIM}To update: ${TEXT}npx skillhub-cli add ${source} -g -y${RESET}`);
   }
 }
 
@@ -292,7 +293,9 @@ export async function updateGlobalSkills(
   if (skillNames.length === 0) {
     if (!options.skills) {
       console.log(`${DIM}No global skills tracked in lock file.${RESET}`);
-      console.log(`${DIM}Install skills with${RESET} ${TEXT}npx wittyhub add <package> -g${RESET}`);
+      console.log(
+        `${DIM}Install skills with${RESET} ${TEXT}npx skillhub-cli add <package> -g${RESET}`
+      );
     }
     return { successCount, failCount, checkedCount: 0 };
   }
@@ -483,7 +486,7 @@ export async function updateProjectSkills(
     if (!options.skills) {
       console.log(`${DIM}No project skills to update.${RESET}`);
       console.log(
-        `${DIM}Install project skills with${RESET} ${TEXT}npx wittyhub add <package>${RESET}`
+        `${DIM}Install project skills with${RESET} ${TEXT}npx skillhub-cli add <package>${RESET}`
       );
     }
     return { successCount, failCount, foundCount: 0 };
@@ -544,7 +547,7 @@ export async function updateProjectSkills(
 
   for (const [source, skillsForSource] of bySource) {
     const firstEntry = skillsForSource[0]!.entry;
-    const sourceUrl = firstEntry.source;
+    const sourceUrl = resolveSourceUrl(firstEntry.source, firstEntry.sourceType);
     const ref = firstEntry.ref;
 
     const allLockedForSource = Object.entries(localLock.skills)
@@ -584,7 +587,10 @@ export async function updateProjectSkills(
     for (const skill of remainingSkills) {
       const safeName = sanitizeMetadata(skill.name);
       console.log(`${TEXT}Updating ${safeName}...${RESET}`);
-      const installUrl = formatSourceInput(skill.entry.source, skill.entry.ref);
+      const installUrl = formatSourceInput(
+        resolveSourceUrl(skill.entry.source, skill.entry.sourceType),
+        skill.entry.ref
+      );
 
       // Preserve Eve subagent placement recorded at install time. The lock stores
       // '' for the root agent, which maps to the `root` keyword for `add --subagent`.
@@ -627,7 +633,7 @@ export function printLegacyProjectSkills(
   for (const skill of legacy) {
     const reinstall = formatSourceInput(skill.entry.source, skill.entry.ref);
     console.log(`  ${TEXT}•${RESET} ${sanitizeMetadata(skill.name)}`);
-    console.log(`    ${DIM}To refresh: ${TEXT}npx wittyhub add ${reinstall} -y${RESET}`);
+    console.log(`    ${DIM}To refresh: ${TEXT}npx skillhub-cli add ${reinstall} -y${RESET}`);
   }
 }
 

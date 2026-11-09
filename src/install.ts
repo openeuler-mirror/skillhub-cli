@@ -2,6 +2,7 @@ import * as p from '@clack/prompts';
 import pc from 'picocolors';
 import { readLocalLock } from './local-lock.ts';
 import { runAdd } from './add.ts';
+import { resolveSourceUrl } from './update-source.ts';
 import { runSync, parseSyncOptions } from './sync.ts';
 import { getUniversalAgents } from './agents.ts';
 
@@ -22,7 +23,7 @@ export async function runInstallFromLock(args: string[]): Promise<void> {
   if (skillEntries.length === 0) {
     p.log.warn('No project skills found in skills-lock.json');
     p.log.info(
-      `Add project-level skills with ${pc.cyan('npx wittyhub add <package>')} (without ${pc.cyan('-g')})`
+      `Add project-level skills with ${pc.cyan('npx skillhub-cli add <package>')} (without ${pc.cyan('-g')})`
     );
     return;
   }
@@ -40,7 +41,8 @@ export async function runInstallFromLock(args: string[]): Promise<void> {
       continue;
     }
 
-    const installSource = entry.ref ? `${entry.source}#${entry.ref}` : entry.source;
+    const baseSource = resolveSourceUrl(entry.source, entry.sourceType);
+    const installSource = entry.ref ? `${baseSource}#${entry.ref}` : baseSource;
     const existing = bySource.get(installSource);
     if (existing) {
       existing.skills.push(skillName);

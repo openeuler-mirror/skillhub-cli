@@ -173,7 +173,7 @@ function looksLikeGitSource(input: string): boolean {
       const pathname = parsed.pathname;
 
       // Only treat GitHub-style fragments as refs for repo/tree URLs.
-      if (parsed.hostname === 'github.com' || parsed.hostname === 'gitcode.com') {
+      if (parsed.hostname === 'github.com' || parsed.hostname === 'atomgit.com') {
         return /^\/[^/]+\/[^/]+(?:\.git)?(?:\/tree\/[^/]+(?:\/.*)?)?\/?$/.test(pathname);
       }
 
@@ -239,7 +239,7 @@ function appendFragmentRef(input: string, ref?: string, skillFilter?: string): s
 
 interface GitHubLikeHostOptions {
   hostname: string;
-  type: 'github' | 'gitcode';
+  type: 'github' | 'atomgit';
 }
 
 function parseGitHubLikeSource(
@@ -389,12 +389,12 @@ export function parseSource(input: string): ParsedSource {
     }
   }
 
-  const gitcodeParsed = parseGitHubLikeSource(input, fragmentRef, {
-    hostname: 'gitcode.com',
-    type: 'gitcode',
+  const atomgitParsed = parseGitHubLikeSource(input, fragmentRef, {
+    hostname: 'atomgit.com',
+    type: 'atomgit',
   });
-  if (gitcodeParsed) {
-    return gitcodeParsed;
+  if (atomgitParsed) {
+    return atomgitParsed;
   }
 
   // GitHub shorthand: owner/repo, owner/repo/path/to/skill, or owner/repo@skill-name
@@ -455,7 +455,7 @@ function isWellKnownUrl(input: string): boolean {
     const parsed = new URL(input);
 
     // Exclude known git hosts that have their own handling
-    const excludedHosts = ['github.com', 'gitlab.com', 'raw.githubusercontent.com', 'gitcode.com'];
+    const excludedHosts = ['github.com', 'gitlab.com', 'raw.githubusercontent.com', 'atomgit.com'];
     if (excludedHosts.includes(parsed.hostname)) {
       return false;
     }

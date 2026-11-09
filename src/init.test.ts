@@ -32,7 +32,7 @@ describe('init command', () => {
         3. Optionally set version and category (see the comment in my-test-skill/SKILL.md for the full list of categories)
 
       Publishing:
-        Submit your skill to https://gitcode.com/openeuler/openEuler-skills
+        Submit your skill to https://atomgit.com/openeuler/openEuler-skills
 
       Browse existing skills for inspiration at https://skillhub.openeuler.org/
 
@@ -48,7 +48,7 @@ describe('init command', () => {
       name: my-test-skill
       description: A brief description of what this skill does
       version: 0.1.0  # optional; increment as needed
-      category: others  # optional;change if needed — full list at https://gitcode.com/openeuler/openEuler-skills
+      category: others  # optional;change if needed — full list at https://atomgit.com/openeuler/openEuler-skills
       ---
 
       # my-test-skill
@@ -82,7 +82,7 @@ describe('init command', () => {
     expect(output).toContain('Initialized skill: my-skill');
     expect(output).toContain('Created:\n  my-skill/SKILL.md'); // in a subfolder, not directly in cwd
     expect(output).toContain('Publishing:');
-    expect(output).toContain('Submit your skill to https://gitcode.com/openeuler/openEuler-skills');
+    expect(output).toContain('Submit your skill to https://atomgit.com/openeuler/openEuler-skills');
     expect(existsSync(join(testDir, 'my-skill', 'SKILL.md'))).toBe(true);
   });
 
@@ -90,7 +90,7 @@ describe('init command', () => {
     const output = stripLogo(runCliOutput(['init', 'my-skill'], testDir));
 
     expect(output).toContain('Publishing:');
-    expect(output).toContain('Submit your skill to https://gitcode.com/openeuler/openEuler-skills');
+    expect(output).toContain('Submit your skill to https://atomgit.com/openeuler/openEuler-skills');
     expect(output).toContain(
       'Browse existing skills for inspiration at https://skillhub.openeuler.org/'
     );

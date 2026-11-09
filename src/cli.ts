@@ -14,7 +14,6 @@ import { runSync, parseSyncOptions } from './sync.ts';
 import { flushTelemetry } from './telemetry.ts';
 import { isRunningInAgent } from './detect-agent.ts';
 import { runUpdate } from './update.ts';
-import { runUse, parseUseOptions } from './use.ts';
 import { runValidate } from './validate.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -39,12 +38,12 @@ const DIM = '\x1b[38;5;102m'; // darker gray for secondary text
 const TEXT = '\x1b[38;5;145m'; // lighter gray for primary text
 
 const LOGO_LINES = [
-  '██╗    ██╗██╗████████╗████████╗██╗   ██╗██╗  ██╗██╗   ██╗██████╗ ',
-  '██║    ██║██║╚══██╔══╝╚══██╔══╝╚██╗ ██╔╝██║  ██║██║   ██║██╔══██╗',
-  '██║ █╗ ██║██║   ██║      ██║    ╚████╔╝ ███████║██║   ██║██████╔╝',
-  '██║███╗██║██║   ██║      ██║     ╚██╔╝  ██╔══██║██║   ██║██╔══██╗',
-  '╚███╔███╔╝██║   ██║      ██║      ██║   ██║  ██║╚██████╔╝██████╔╝',
-  ' ╚══╝╚══╝ ╚═╝   ╚═╝      ╚═╝      ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ',
+  '███████╗██╗  ██╗██╗██╗     ██╗     ██╗  ██╗██╗   ██╗██████╗',
+  '██╔════╝██║ ██╔╝██║██║     ██║     ██║  ██║██║   ██║██╔══██╗',
+  '███████╗█████╔╝ ██║██║     ██║     ███████║██║   ██║██████╔╝',
+  '╚════██║██╔═██╗ ██║██║     ██║     ██╔══██║██║   ██║██╔══██╗',
+  '███████║██║  ██╗██║███████╗███████╗██║  ██║╚██████╔╝██████╔╝',
+  '╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝',
 ];
 
 // 256-color middle grays - visible on both light and dark backgrounds
@@ -70,39 +69,36 @@ function showBanner(): void {
   console.log(`${DIM}The open agent skills ecosystem${RESET}`);
   console.log();
   console.log(
-    `  ${DIM}$${RESET} ${TEXT}npx wittyhub add ${DIM}<package>${RESET}        ${DIM}Add a new skill${RESET}`
+    `  ${DIM}$${RESET} ${TEXT}npx skillhub-cli add ${DIM}<package>${RESET}        ${DIM}Add a new skill${RESET}`
   );
   console.log(
-    `  ${DIM}$${RESET} ${TEXT}npx wittyhub use ${DIM}<package>@<skill>${RESET} ${DIM}Use a skill without installing${RESET}`
+    `  ${DIM}$${RESET} ${TEXT}npx skillhub-cli remove${RESET}               ${DIM}Remove installed skills${RESET}`
   );
   console.log(
-    `  ${DIM}$${RESET} ${TEXT}npx wittyhub remove${RESET}               ${DIM}Remove installed skills${RESET}`
+    `  ${DIM}$${RESET} ${TEXT}npx skillhub-cli list${RESET}                 ${DIM}List installed skills${RESET}`
   );
   console.log(
-    `  ${DIM}$${RESET} ${TEXT}npx wittyhub list${RESET}                 ${DIM}List installed skills${RESET}`
-  );
-  console.log(
-    `  ${DIM}$${RESET} ${TEXT}npx wittyhub find ${DIM}[query]${RESET}         ${DIM}Search for skills${RESET}`
+    `  ${DIM}$${RESET} ${TEXT}npx skillhub-cli find ${DIM}[query]${RESET}         ${DIM}Search for skills${RESET}`
   );
   console.log();
   console.log(
-    `  ${DIM}$${RESET} ${TEXT}npx wittyhub update${RESET}               ${DIM}Update installed skills${RESET}`
+    `  ${DIM}$${RESET} ${TEXT}npx skillhub-cli update${RESET}               ${DIM}Update installed skills${RESET}`
   );
   console.log();
   console.log(
-    `  ${DIM}$${RESET} ${TEXT}npx wittyhub experimental_install${RESET} ${DIM}Restore from skills-lock.json${RESET}`
+    `  ${DIM}$${RESET} ${TEXT}npx skillhub-cli experimental_install${RESET} ${DIM}Restore from skills-lock.json${RESET}`
   );
   console.log(
-    `  ${DIM}$${RESET} ${TEXT}npx wittyhub init ${DIM}[name]${RESET}          ${DIM}Create a new skill${RESET}`
+    `  ${DIM}$${RESET} ${TEXT}npx skillhub-cli init ${DIM}[name]${RESET}          ${DIM}Create a new skill${RESET}`
   );
   console.log(
-    `  ${DIM}$${RESET} ${TEXT}npx wittyhub validate ${DIM}<path>${RESET}   ${DIM}Validate a local skill${RESET}`
+    `  ${DIM}$${RESET} ${TEXT}npx skillhub-cli validate ${DIM}<path>${RESET}   ${DIM}Validate a local skill${RESET}`
   );
   console.log(
-    `  ${DIM}$${RESET} ${TEXT}npx wittyhub experimental_sync${RESET}    ${DIM}Sync skills from node_modules${RESET}`
+    `  ${DIM}$${RESET} ${TEXT}npx skillhub-cli experimental_sync${RESET}    ${DIM}Sync skills from node_modules${RESET}`
   );
   console.log();
-  console.log(`${DIM}try:${RESET} npx wittyhub add gitcode:openeuler/witty-diagnosis-agent`);
+  console.log(`${DIM}try:${RESET} npx skillhub-cli add atomgit:openeuler/witty-diagnosis-agent`);
   console.log();
   console.log(`Discover more skills at ${TEXT}https://skillhub.openeuler.org/${RESET}`);
   console.log();
@@ -110,14 +106,12 @@ function showBanner(): void {
 
 function showHelp(): void {
   console.log(`
-${BOLD}Usage:${RESET} wittyhub <command> [options]
+${BOLD}Usage:${RESET} skillhub-cli <command> [options]
 
 ${BOLD}Manage Skills:${RESET}
   add <package>        Add a skill package (alias: a)
                        e.g. vercel-labs/agent-skills
                             https://github.com/vercel-labs/agent-skills
-  use <package>@<skill>
-                       Generate a prompt for using one skill without installing it
   remove [skills]      Remove installed skills
   list, ls             List installed skills
   find [query]         Search for skills interactively
@@ -154,12 +148,11 @@ ${BOLD}Add Options:${RESET}
   --full-depth           Search all subdirectories even when a root SKILL.md exists
   -v, --version <ver>    Download a specific skill version from skill_versions table
 
-${BOLD}Use Options:${RESET}
-  -s, --skill <skill>    Specify the skill to use
-  -a, --agent <agent>    Start one supported agent interactively
-  --full-depth           Search all subdirectories even when a root SKILL.md exists
-  --dangerously-accept-openclaw-risks
-                         Allow unverified OpenClaw community skills
+${BOLD}Configuration:${RESET}
+  Backend API URL (used by add/search/download) resolved in priority order:
+    1. ~/.config/skillhub-cli/cli.yaml  api_url
+    2. SKILLS_API_URL env var            (auto-appends /api/v1)
+    3. default: https://skillhub.openeuler.org/api/v1
 
 ${BOLD}Remove Options:${RESET}
   -g, --global           Remove from global scope
@@ -182,26 +175,26 @@ ${BOLD}Options:${RESET}
   --version, -v     Show version number
 
 ${BOLD}Examples:${RESET}
-  ${DIM}$${RESET} wittyhub add https://gitcode.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
-  ${DIM}$${RESET} wittyhub add https://gitcode.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis -g
-  ${DIM}$${RESET} wittyhub add https://gitcode.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis --agent claude-code cursor
-  ${DIM}$${RESET} wittyhub remove                        ${DIM}# interactive remove${RESET}
-  ${DIM}$${RESET} wittyhub remove web-design             ${DIM}# remove by name${RESET}
-  ${DIM}$${RESET} wittyhub rm --global frontend-design
-  ${DIM}$${RESET} wittyhub list                          ${DIM}# list project skills${RESET}
-  ${DIM}$${RESET} wittyhub ls -g                         ${DIM}# list global skills${RESET}
-  ${DIM}$${RESET} wittyhub ls -a claude-code             ${DIM}# filter by agent${RESET}
-  ${DIM}$${RESET} wittyhub ls --json                      ${DIM}# JSON output${RESET}
-  ${DIM}$${RESET} wittyhub find                          ${DIM}# interactive search${RESET}
-  ${DIM}$${RESET} wittyhub find typescript               ${DIM}# search by keyword${RESET}
-  ${DIM}$${RESET} wittyhub find react --owner vercel     ${DIM}# search within an owner${RESET}
-  ${DIM}$${RESET} wittyhub update
-  ${DIM}$${RESET} wittyhub update my-skill             ${DIM}# update a single skill${RESET}
-  ${DIM}$${RESET} wittyhub update -g                    ${DIM}# update global skills only${RESET}
-  ${DIM}$${RESET} wittyhub experimental_install            ${DIM}# restore from skills-lock.json${RESET}
-  ${DIM}$${RESET} wittyhub init my-skill
-  ${DIM}$${RESET} wittyhub experimental_sync              ${DIM}# sync from node_modules${RESET}
-  ${DIM}$${RESET} wittyhub experimental_sync -y           ${DIM}# sync without prompts${RESET}
+  ${DIM}$${RESET} skillhub-cli add https://atomgit.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
+  ${DIM}$${RESET} skillhub-cli add https://atomgit.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis -g
+  ${DIM}$${RESET} skillhub-cli add https://atomgit.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis --agent claude-code cursor
+  ${DIM}$${RESET} skillhub-cli remove                        ${DIM}# interactive remove${RESET}
+  ${DIM}$${RESET} skillhub-cli remove web-design             ${DIM}# remove by name${RESET}
+  ${DIM}$${RESET} skillhub-cli rm --global frontend-design
+  ${DIM}$${RESET} skillhub-cli list                          ${DIM}# list project skills${RESET}
+  ${DIM}$${RESET} skillhub-cli ls -g                         ${DIM}# list global skills${RESET}
+  ${DIM}$${RESET} skillhub-cli ls -a claude-code             ${DIM}# filter by agent${RESET}
+  ${DIM}$${RESET} skillhub-cli ls --json                      ${DIM}# JSON output${RESET}
+  ${DIM}$${RESET} skillhub-cli find                          ${DIM}# interactive search${RESET}
+  ${DIM}$${RESET} skillhub-cli find typescript               ${DIM}# search by keyword${RESET}
+  ${DIM}$${RESET} skillhub-cli find react --owner vercel     ${DIM}# search within an owner${RESET}
+  ${DIM}$${RESET} skillhub-cli update
+  ${DIM}$${RESET} skillhub-cli update my-skill             ${DIM}# update a single skill${RESET}
+  ${DIM}$${RESET} skillhub-cli update -g                    ${DIM}# update global skills only${RESET}
+  ${DIM}$${RESET} skillhub-cli experimental_install            ${DIM}# restore from skills-lock.json${RESET}
+  ${DIM}$${RESET} skillhub-cli init my-skill
+  ${DIM}$${RESET} skillhub-cli experimental_sync              ${DIM}# sync from node_modules${RESET}
+  ${DIM}$${RESET} skillhub-cli experimental_sync -y           ${DIM}# sync without prompts${RESET}
 
 Discover more skills at ${TEXT}https://skillhub.openeuler.org/${RESET}
 `);
@@ -209,7 +202,7 @@ Discover more skills at ${TEXT}https://skillhub.openeuler.org/${RESET}
 
 function showInitHelp(): void {
   console.log(`
-${BOLD}Usage:${RESET} wittyhub init [name]
+${BOLD}Usage:${RESET} skillhub-cli init [name]
 
 ${BOLD}Description:${RESET}
   Initialize a new skill by creating a SKILL.md template.
@@ -219,15 +212,15 @@ ${BOLD}Arguments:${RESET}
                     If omitted, defaults to my-skill/ (never the cwd itself).
 
 ${BOLD}Examples:${RESET}
-  ${DIM}$${RESET} wittyhub init                    ${DIM}# creates my-skill/SKILL.md${RESET}
-  ${DIM}$${RESET} wittyhub init my-skill           ${DIM}# creates my-skill/SKILL.md${RESET}
-  ${DIM}$${RESET} wittyhub init code-reviewer      ${DIM}# creates code-reviewer/SKILL.md${RESET}
+  ${DIM}$${RESET} skillhub-cli init                    ${DIM}# creates my-skill/SKILL.md${RESET}
+  ${DIM}$${RESET} skillhub-cli init my-skill           ${DIM}# creates my-skill/SKILL.md${RESET}
+  ${DIM}$${RESET} skillhub-cli init code-reviewer      ${DIM}# creates code-reviewer/SKILL.md${RESET}
 `);
 }
 
 function showValidateHelp(): void {
   console.log(`
-${BOLD}Usage:${RESET} wittyhub validate <path> [options]
+${BOLD}Usage:${RESET} skillhub-cli validate <path> [options]
 
 ${BOLD}Description:${RESET}
   Validate a local skill for spec compliance (SKILL.md filename, frontmatter,
@@ -241,15 +234,15 @@ ${BOLD}Options:${RESET}
   -h, --help         Show this help message.
 
 ${BOLD}Examples:${RESET}
-  ${DIM}$${RESET} wittyhub validate ./my-skill
-  ${DIM}$${RESET} wittyhub validate ./my-skill/SKILL.md
-  ${DIM}$${RESET} wittyhub validate ./my-skill --json
+  ${DIM}$${RESET} skillhub-cli validate ./my-skill
+  ${DIM}$${RESET} skillhub-cli validate ./my-skill/SKILL.md
+  ${DIM}$${RESET} skillhub-cli validate ./my-skill --json
 `);
 }
 
 function showRemoveHelp(): void {
   console.log(`
-${BOLD}Usage:${RESET} wittyhub remove [skills...] [options]
+${BOLD}Usage:${RESET} skillhub-cli remove [skills...] [options]
 
 ${BOLD}Description:${RESET}
   Remove installed skills from agents. If no skill names are provided,
@@ -266,13 +259,13 @@ ${BOLD}Options:${RESET}
   --all              Shorthand for --skill '*' --agent '*' -y
 
 ${BOLD}Examples:${RESET}
-  ${DIM}$${RESET} wittyhub remove                           ${DIM}# interactive selection${RESET}
-  ${DIM}$${RESET} wittyhub remove my-skill                   ${DIM}# remove specific skill${RESET}
-  ${DIM}$${RESET} wittyhub remove skill1 skill2 -y           ${DIM}# remove multiple skills${RESET}
-  ${DIM}$${RESET} wittyhub remove --global my-skill          ${DIM}# remove from global scope${RESET}
-  ${DIM}$${RESET} wittyhub rm --agent claude-code my-skill   ${DIM}# remove from specific agent${RESET}
-  ${DIM}$${RESET} wittyhub remove --all                      ${DIM}# remove all skills${RESET}
-  ${DIM}$${RESET} wittyhub remove --skill '*' -a cursor      ${DIM}# remove all skills from cursor${RESET}
+  ${DIM}$${RESET} skillhub-cli remove                           ${DIM}# interactive selection${RESET}
+  ${DIM}$${RESET} skillhub-cli remove my-skill                   ${DIM}# remove specific skill${RESET}
+  ${DIM}$${RESET} skillhub-cli remove skill1 skill2 -y           ${DIM}# remove multiple skills${RESET}
+  ${DIM}$${RESET} skillhub-cli remove --global my-skill          ${DIM}# remove from global scope${RESET}
+  ${DIM}$${RESET} skillhub-cli rm --agent claude-code my-skill   ${DIM}# remove from specific agent${RESET}
+  ${DIM}$${RESET} skillhub-cli remove --all                      ${DIM}# remove all skills${RESET}
+  ${DIM}$${RESET} skillhub-cli remove --skill '*' -a cursor      ${DIM}# remove all skills from cursor${RESET}
 
 Discover more skills at ${TEXT}https://skillhub.openeuler.org/${RESET}
 `);
@@ -280,7 +273,7 @@ Discover more skills at ${TEXT}https://skillhub.openeuler.org/${RESET}
 
 function runInit(args: string[]): void {
   const cwd = process.cwd();
-  // Default to "my-skill" so `wittyhub init` always creates a dedicated
+  // Default to "my-skill" so `skillhub-cli init` always creates a dedicated
   // subdirectory instead of dropping SKILL.md into the current directory.
   const skillName = args[0] ?? 'my-skill';
 
@@ -299,7 +292,7 @@ function runInit(args: string[]): void {
 name: ${skillName}
 description: A brief description of what this skill does
 version: 0.1.0  # optional; increment as needed
-category: others  # optional;change if needed — full list at https://gitcode.com/openeuler/openEuler-skills
+category: others  # optional;change if needed — full list at https://atomgit.com/openeuler/openEuler-skills
 ---
 
 # ${skillName}
@@ -335,7 +328,7 @@ Describe when this skill should be used.
   console.log();
   console.log(`${DIM}Publishing:${RESET}`);
   console.log(
-    `  Submit your skill to ${TEXT}https://gitcode.com/openeuler/openEuler-skills${RESET}`
+    `  Submit your skill to ${TEXT}https://atomgit.com/openeuler/openEuler-skills${RESET}`
   );
   console.log();
   console.log(
@@ -393,15 +386,6 @@ async function main(): Promise<void> {
       if (!inAgent) showLogo();
       const { source: addSource, options: addOpts } = parseAddOptions(restArgs);
       await runAdd(addSource, addOpts);
-      break;
-    }
-    case 'use': {
-      const {
-        source: useSource,
-        options: useOptions,
-        errors: useErrors,
-      } = parseUseOptions(restArgs);
-      await runUse(useSource, useOptions, useErrors);
       break;
     }
     case 'remove':
@@ -463,7 +447,7 @@ async function main(): Promise<void> {
 
     default:
       console.log(`Unknown command: ${command}`);
-      console.log(`Run ${BOLD}wittyhub --help${RESET} for usage.`);
+      console.log(`Run ${BOLD}skillhub-cli --help${RESET} for usage.`);
   }
 }
 

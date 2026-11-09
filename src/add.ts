@@ -7,7 +7,7 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { existsSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { sep, join, dirname, resolve as resolvePath, isAbsolute } from 'node:path';
-import { getOwnerRepo, parseOwnerRepo, isRepoPrivate } from './source-parser.ts';
+import { getOwnerRepo, parseOwnerRepo, isRepoPrivate, parseSource } from './source-parser.ts';
 import { DOWNLOAD_URL, SEARCH_URL } from './config.ts';
 import {
   normalizeSkillId,
@@ -42,7 +42,7 @@ export function getLockSource(parsedUrl: string, normalizedSource: string | null
   const isSSH = parsedUrl.startsWith('git@') || parsedUrl.startsWith('ssh://');
   return isSSH ? parsedUrl : normalizedSource;
 }
-import { cleanupTempDir, GitCloneError } from './git.ts';
+import { cloneRepo, cleanupTempDir, GitCloneError } from './git.ts';
 import { discoverSkills, getSkillDisplayName, filterSkills } from './skills.ts';
 import {
   installSkillForAgent,
@@ -57,7 +57,6 @@ import {
   agents,
   getUniversalAgents,
   getVisibleUniversalAgents,
-  getNonUniversalAgents,
   isUniversalAgent,
   getEveSubagents,
 } from './agents.ts';
@@ -81,12 +80,7 @@ import {
 } from './skill-lock.ts';
 import { addSkillToLocalLock, computeSkillFolderHash } from './local-lock.ts';
 import type { Skill, AgentType, ParsedSource } from './types.ts';
-import {
-  getSkillFolderHashFromTree,
-  fetchRepoTree,
-  type BlobSkill,
-  type BlobInstallResult,
-} from './blob.ts';
+import { getSkillFolderHashFromTree, fetchRepoTree } from './blob.ts';
 import packageJson from '../package.json' with { type: 'json' };
 export function initTelemetry(version: string): void {
   setVersion(version);
@@ -152,6 +146,27 @@ function looksLikeRepoSource(source: string): boolean {
   // owner/repo shorthand: exactly one slash, no colon, no spaces
   const slashCount = (s.match(/\//g) || []).length;
   return slashCount <= 1 && !s.includes(':') && !/\s/.test(s);
+}
+
+/**
+ * 把仓库引用还原成可直接 `git clone` 的 URL。
+ * - `source:owner/repo`（如 atomgit:openeuler/repo）→ https://host/owner/repo.git
+ * - URL / SSH 形式 → 复用 parseSource 规范化（http(s) 会补 `.git` 后缀）
+ */
+function toCloneUrl(source: string): string {
+  if (isRepoLevelRef(source)) {
+    const [sourceType, ownerRepo] = source.split(':', 2) as [string, string];
+    const host: Record<string, string> = {
+      github: 'github.com',
+      atomgit: 'atomgit.com',
+      gitlab: 'gitlab.com',
+      gitee: 'gitee.com',
+    };
+    const h = host[sourceType];
+    if (h) return `https://${h}/${ownerRepo}.git`;
+    return source;
+  }
+  return parseSource(source).url;
 }
 
 interface SearchApiEnvelope {
@@ -261,7 +276,7 @@ async function resolveSkillId(
 }
 
 /**
- * Download a packaged skill archive from the wittyhub API and extract it
+ * Download a packaged skill archive from the SkillHub API and extract it
  * into a temporary directory. If `targetDir` is provided, extract into that
  * directory instead of creating a new one (used when downloading multiple
  * skills into the same temp dir).
@@ -284,9 +299,12 @@ async function downloadAndExtractSkill(
     // 透出后端错误 detail（如 409 时说明仓库本地克隆缺失等具体原因）
     const detail = await response
       .json()
-      .then((data: { detail?: unknown }) =>
-        typeof data?.detail === 'string' && data.detail ? `: ${data.detail}` : ''
-      )
+      .then((data: unknown) => {
+        const d = (data ?? {}) as { detail?: unknown };
+        if (typeof d.detail === 'string' && d.detail) return `: ${d.detail}`;
+        if (d.detail) return `: ${JSON.stringify(d.detail)}`;
+        return '';
+      })
       .catch(() => '');
     throw new Error(`HTTP ${response.status} ${response.statusText}${detail}`);
   }
@@ -339,7 +357,7 @@ function padEnd(str: string, width: number): string {
 }
 
 /**
- * Render a compact security table of wittyhub audit results.
+ * Render a compact security table of skillhub-cli audit results.
  * Returns the lines to display, or empty array if no data.
  */
 function buildSecurityLines(
@@ -449,17 +467,10 @@ function formatList(items: string[], maxShow: number = 5): string {
  * the batch audit endpoint, so both derive the same skill_id server-side.
  * Local-path skills (no repo temp dir) are skipped.
  */
-function buildSkillFiles(
-  selectedSkills: Skill[],
-  tempDir: string | null,
-  blobResult: BlobInstallResult | null
-): Record<string, string> {
+function buildSkillFiles(selectedSkills: Skill[], tempDir: string | null): Record<string, string> {
   const skillFiles: Record<string, string> = {};
   for (const skill of selectedSkills) {
-    if (blobResult && 'repoPath' in skill) {
-      // Blob-based: repoPath is already the repo-relative path (e.g., "skills/react/SKILL.md")
-      skillFiles[skill.name] = (skill as BlobSkill).repoPath;
-    } else if (tempDir && skill.path === tempDir) {
+    if (tempDir && skill.path === tempDir) {
       // Skill is at root level of repo
       skillFiles[skill.name] = 'SKILL.md';
     } else if (tempDir && skill.path.startsWith(tempDir + sep)) {
@@ -718,83 +729,50 @@ function multiselect<Value>(opts: {
 }
 
 /**
- * Prompts the user to select agents using interactive search.
- * Pre-selects the last used agents if available.
- * Saves the selection for future use.
- */
-export async function promptForAgents(
-  message: string,
-  choices: Array<{ value: AgentType; label: string; hint?: string }>
-): Promise<AgentType[] | symbol> {
-  // Get last selected agents to pre-select
-  let lastSelected: string[] | undefined;
-  try {
-    lastSelected = await getLastSelectedAgents();
-  } catch {
-    // Silently ignore errors reading lock file
-  }
-
-  const validAgents = choices.map((c) => c.value);
-
-  // Default agents to pre-select when no valid history exists
-  const defaultAgents: AgentType[] = ['claude-code', 'opencode', 'codex'];
-  const defaultValues = defaultAgents.filter((a) => validAgents.includes(a));
-
-  let initialValues: AgentType[] = [];
-
-  if (lastSelected && lastSelected.length > 0) {
-    // Filter stored agents against currently valid agents
-    initialValues = lastSelected.filter((a) => validAgents.includes(a as AgentType)) as AgentType[];
-  }
-
-  // If no valid selection from history, use defaults
-  if (initialValues.length === 0) {
-    initialValues = defaultValues;
-  }
-
-  const selected = await searchMultiselect({
-    message,
-    items: choices,
-    initialSelected: initialValues,
-    required: true,
-  });
-
-  if (!isCancelled(selected)) {
-    // Save selection for next time
-    try {
-      await saveSelectedAgents(selected as string[]);
-    } catch {
-      // Silently ignore errors writing lock file
-    }
-  }
-
-  return selected as AgentType[] | symbol;
-}
-
-/**
  * Interactive agent selection using fuzzy search.
- * Shows universal agents as locked (always selected), and other agents as selectable.
+ * `preset` pre-selects agents (e.g. detected ones). `locked` pins `-a` agents as
+ * always included while the menu can add more alongside them; without `locked`,
+ * universal agents are always included via the locked section.
  */
-async function selectAgentsInteractive(options: {
+export async function selectAgentsInteractive(options: {
   global?: boolean;
+  preset?: AgentType[];
+  locked?: AgentType[];
 }): Promise<AgentType[] | symbol> {
   // Filter out agents that don't support global installation when --global is used
   const supportsGlobalFilter = (a: AgentType) => !options.global || agents[a].globalSkillsDir;
+  const locked = [...new Set(options.locked ?? [])];
 
   const universalAgents = getUniversalAgents().filter(supportsGlobalFilter);
   const visibleUniversalAgents = getVisibleUniversalAgents().filter(supportsGlobalFilter);
-  const otherAgents = getNonUniversalAgents().filter(
-    (agent) => agent !== 'eve' && supportsGlobalFilter(agent)
-  );
 
-  // Universal agents shown as locked section
-  const universalSection = {
-    title: 'Universal (.agents/skills)',
-    items: visibleUniversalAgents.map((a) => ({
-      value: a,
-      label: agents[a].displayName,
-    })),
-    hiddenCount: universalAgents.length - visibleUniversalAgents.length,
+  // Without `-a`, universal agents are always included via the locked section and
+  // thus not selectable. With `-a`, only the given agents are pinned and everything
+  // else (universal agents included) is opt-in through the menu.
+  const otherAgents = (Object.keys(agents) as AgentType[]).filter((agent) => {
+    if (agent === 'eve' || !supportsGlobalFilter(agent) || locked.includes(agent)) {
+      return false;
+    }
+    return locked.length > 0 || !universalAgents.includes(agent);
+  });
+
+  const lockedSection = {
+    title: locked.length > 0 ? 'Specified by -a' : 'Universal (.agents/skills)',
+    items: [
+      ...locked.map((a) => ({
+        value: a,
+        label: agents[a].displayName,
+        hint: '-a',
+      })),
+      ...(locked.length === 0
+        ? visibleUniversalAgents.map((a) => ({
+            value: a,
+            label: agents[a].displayName,
+          }))
+        : []),
+    ],
+    hiddenCount:
+      locked.length > 0 ? undefined : universalAgents.length - visibleUniversalAgents.length,
   };
 
   // Other agents are selectable with their skillsDir as hint
@@ -812,17 +790,23 @@ async function selectAgentsInteractive(options: {
     // Silently ignore errors
   }
 
-  const initialSelected = lastSelected
+  const historySelected = lastSelected
     ? (lastSelected.filter(
         (a) => otherAgents.includes(a as AgentType) && !universalAgents.includes(a as AgentType)
       ) as AgentType[])
     : [];
 
+  // Explicit preset (e.g. detected agents) wins over selection history. With `-a`
+  // locked agents the menu starts clean so additions are always explicit.
+  const presetSelected = (options.preset ?? []).filter((a) => otherAgents.includes(a));
+  const initialSelected =
+    locked.length > 0 ? [] : presetSelected.length > 0 ? presetSelected : historySelected;
+
   const selected = await searchMultiselect({
     message: 'Which agents do you want to install to?',
     items: otherChoices,
     initialSelected,
-    lockedSection: universalSection,
+    lockedSection,
   });
 
   if (!isCancelled(selected)) {
@@ -832,6 +816,13 @@ async function selectAgentsInteractive(options: {
     } catch {
       // Silently ignore errors
     }
+
+    // Hidden universal agents aren't shown in the locked section but are always
+    // installed alongside the visible ones. With `-a` locked agents the explicit
+    // selection governs, so universal agents stay opt-in through the menu.
+    return locked.length > 0
+      ? (selected as AgentType[])
+      : ensureUniversalAgents(selected as AgentType[]);
   }
 
   return selected as AgentType[] | symbol;
@@ -981,51 +972,48 @@ async function handleWellKnownSkills(
       process.exit(1);
     }
 
-    targetAgents = options.agent as AgentType[];
+    if (options.yes) {
+      // Explicit -a + -y: install to the specified agents only.
+      targetAgents = options.agent as AgentType[];
+    } else {
+      // Explicit -a without -y: pin the specified agents and let the menu add more.
+      const selected = await selectAgentsInteractive({
+        global: options.global,
+        locked: options.agent as AgentType[],
+      });
+
+      if (p.isCancel(selected)) {
+        p.cancel('Installation cancelled');
+        process.exit(0);
+      }
+
+      targetAgents = selected as AgentType[];
+    }
   } else {
     spinner.start('Loading agents...');
     const installedAgents = await detectInstalledAgents();
     const totalAgents = Object.keys(agents).length;
     spinner.stop(`${totalAgents} agents`);
 
-    if (installedAgents.length === 0) {
-      if (options.yes) {
-        targetAgents = validAgents as AgentType[];
-        p.log.info('Installing to all agents');
+    if (options.yes) {
+      if (installedAgents.length === 0) {
+        // No detected agent: fall back to the shared universal dir instead of
+        // blasting every agent's directory (which may not even be installed).
+        targetAgents = ['universal'];
+        p.log.info('No agents detected — installing to shared .agents/skills');
       } else {
-        p.log.info('Select agents to install skills to');
-
-        const allAgentChoices = Object.entries(agents).map(([key, config]) => ({
-          value: key as AgentType,
-          label: config.displayName,
-        }));
-
-        // Use helper to prompt with search
-        const selected = await promptForAgents(
-          'Which agents do you want to install to?',
-          allAgentChoices
-        );
-
-        if (p.isCancel(selected)) {
-          p.cancel('Installation cancelled');
-          process.exit(0);
-        }
-
-        targetAgents = selected as AgentType[];
-      }
-    } else if (installedAgents.length === 1 || options.yes) {
-      // Auto-select detected agents + ensure universal agents are included
-      targetAgents = ensureUniversalAgents(installedAgents);
-      if (installedAgents.length === 1) {
-        const firstAgent = installedAgents[0]!;
-        p.log.info(`Installing to: ${pc.cyan(agents[firstAgent].displayName)}`);
-      } else {
+        // Auto-select detected agents + ensure universal agents are included
+        targetAgents = ensureUniversalAgents(installedAgents);
         p.log.info(
           `Installing to: ${installedAgents.map((a) => pc.cyan(agents[a].displayName)).join(', ')}`
         );
       }
     } else {
-      const selected = await selectAgentsInteractive({ global: options.global });
+      // Interactive: always prompt, pre-selecting detected agents
+      const selected = await selectAgentsInteractive({
+        global: options.global,
+        preset: installedAgents,
+      });
 
       if (p.isCancel(selected)) {
         p.cancel('Installation cancelled');
@@ -1412,37 +1400,51 @@ async function installLocalSkills(
       p.log.info(`Valid agents: ${validAgents.join(', ')}`);
       process.exit(1);
     }
-    targetAgents = options.agent as AgentType[];
+    if (options.yes) {
+      // Explicit -a + -y: install to the specified agents only.
+      targetAgents = options.agent as AgentType[];
+    } else {
+      // Explicit -a without -y: pin the specified agents and let the menu add more.
+      const selected = await selectAgentsInteractive({
+        global: options.global,
+        locked: options.agent as AgentType[],
+      });
+      if (p.isCancel(selected)) {
+        p.cancel('Installation cancelled');
+        process.exit(0);
+      }
+      targetAgents = selected as AgentType[];
+    }
   } else {
     spinner.start('Loading agents...');
     const installedAgents = await detectInstalledAgents();
     const totalAgents = Object.keys(agents).length;
     spinner.stop(`${totalAgents} agents`);
 
-    if (installedAgents.length === 0) {
-      if (options.yes) {
-        targetAgents = validAgents as AgentType[];
-        p.log.info('Installing to all agents');
+    if (options.yes) {
+      if (installedAgents.length === 0) {
+        // No detected agent: fall back to the shared universal dir instead of
+        // blasting every agent's directory (which may not even be installed).
+        targetAgents = ['universal'];
+        p.log.info('No agents detected — installing to shared .agents/skills');
       } else {
-        p.log.info('Select agents to install skills to');
-        const allAgentChoices = Object.entries(agents)
-          .filter(([key]) => key !== 'eve')
-          .map(([key, config]) => ({ value: key as AgentType, label: config.displayName }));
-        const selected = await promptForAgents(
-          'Which agents do you want to install to?',
-          allAgentChoices
+        // Auto-select detected agents + ensure universal agents are included
+        targetAgents = ensureUniversalAgents(installedAgents);
+        p.log.info(
+          `Installing to: ${installedAgents.map((a) => pc.cyan(agents[a].displayName)).join(', ')}`
         );
-        if (p.isCancel(selected)) {
-          p.cancel('Installation cancelled');
-          process.exit(0);
-        }
-        targetAgents = selected as AgentType[];
       }
     } else {
-      targetAgents = ensureUniversalAgents(installedAgents);
-      p.log.info(
-        `Installing to: ${installedAgents.map((a) => pc.cyan(agents[a].displayName)).join(', ')}`
-      );
+      // Interactive: always prompt, pre-selecting detected agents
+      const selected = await selectAgentsInteractive({
+        global: options.global,
+        preset: installedAgents,
+      });
+      if (p.isCancel(selected)) {
+        p.cancel('Installation cancelled');
+        process.exit(0);
+      }
+      targetAgents = selected as AgentType[];
     }
   }
 
@@ -1565,152 +1567,61 @@ async function installLocalSkills(
   await promptForFindSkills(options, targetAgents);
 }
 
-export async function runAdd(args: string[], options: AddOptions = {}): Promise<void> {
-  const source = args[0];
-  let installTipShown = false;
+interface PreparedSkillSource {
+  skillIds: string[];
+  parsed: ParsedSource;
+  repoPrivacyPromise: Promise<boolean | null>;
+  tempDir: string;
+  repoLevel: boolean;
+  cloneInstall: boolean;
+}
 
-  const showInstallTip = (): void => {
-    if (installTipShown) return;
-    p.log.message(
-      pc.dim('Tip: use the --yes (-y) and --global (-g) flags to install without prompts.')
-    );
-    installTipShown = true;
-  };
+/**
+ * 把 `source` 解析成可安装的 skill 源：clone（add <repo> --skill <name>）或
+ * 通过 SkillHub API 下载归档。返回 skill_id 列表、parsed source、隐私检查
+ * Promise、临时目录，以及后续选择逻辑要用的 repoLevel/cloneInstall 标记。
+ */
+async function prepareSkillSource(
+  source: string,
+  options: AddOptions,
+  spinner: ReturnType<typeof p.spinner>
+): Promise<PreparedSkillSource> {
+  const skillNameForLookup = options.skill?.[0];
 
-  if (!source) {
-    console.log();
-    console.log(
-      pc.bgRed(pc.white(pc.bold(' ERROR '))) + ' ' + pc.red('Missing required argument: source')
-    );
-    console.log();
-    console.log(pc.dim('  Usage:'));
-    console.log(
-      `    ${pc.cyan('npx wittyhub add')} ${pc.yellow('<source>')} ${pc.dim('[options]')}`
-    );
-    console.log();
-    console.log(pc.dim('  Example:'));
-    console.log(`    ${pc.cyan('npx wittyhub add')} ${pc.yellow('vercel-labs/agent-skills')}`);
-    console.log();
-    process.exit(1);
-  }
+  // Normalize repo URLs (https://atomgit.com/owner/repo, git@…, ssh://…)
+  // into repo-level refs (source:owner/repo) so they flow through the
+  // same list-API path instead of the search API.
+  const repoRef = isRepoLevelRef(source) ? source : repoUrlToRef(source);
+  const repoLevel = repoRef !== null;
 
-  // --all implies --skill '*' and --agent '*' and -y
-  if (options.all) {
-    options.skill = ['*'];
-    options.agent = ['*'];
-    options.yes = true;
-  }
+  // add <repo> --skill <name>：直接 clone 仓库按名安装，收录/未收录的开放
+  // 仓库通用，不依赖 SkillHub 索引的 list/search API。
+  const explicitSkills = (options.skill ?? []).filter((s) => s !== '*');
+  const cloneInstall = repoLevel && explicitSkills.length > 0;
 
-  // Auto-enable non-interactive mode when running inside an AI agent
-  const agentResult = await detectAgent();
-  if (agentResult.isAgent) {
-    options.yes = true;
-    // Auto-select the detected agent + universal agents (unless user explicitly specified agents)
-    if (!options.agent || options.agent.length === 0) {
-      const mappedAgent = getAgentType(agentResult.agent.name);
-      if (mappedAgent) {
-        options.agent = ensureUniversalAgents([mappedAgent]);
-      }
-    }
-  }
-
-  console.log();
-  if (!agentResult.isAgent) {
-    p.intro(pc.bgCyan(pc.black(' skills ')));
-  }
-
-  if (agentResult.isAgent) {
-    p.log.info(
-      pc.bgCyan(pc.black(pc.bold(` ${agentResult.agent.name} `))) +
-        ' ' +
-        'Agent detected — installing non-interactively'
-    );
-  } else if (!process.stdin.isTTY) {
-    showInstallTip();
-  }
-
+  // clone 安装没有 skill_id（未索引仓库），保持空数组使 audit/遥测跳过。
+  let skillIds: string[] = [];
+  let parsed: ParsedSource;
+  let repoPrivacyPromise: Promise<boolean | null>;
   let tempDir: string | null = null;
 
-  // Block openclaw sources unless explicitly opted in (checked before any
-  // network request or local scan).
-  const sourceOwner = source.split('/')[0]?.toLowerCase();
-  if (sourceOwner === 'openclaw' && !options.dangerouslyAcceptOpenclawRisks) {
-    console.log();
-    p.log.warn(pc.yellow(pc.bold('⚠ OpenClaw skills are unverified community submissions.')));
-    p.log.message(
-      pc.yellow(
-        'This source contains user-submitted skills that have not been reviewed for safety or quality.'
-      )
-    );
-    p.log.message(pc.yellow('Skills run with full agent permissions and could be malicious.'));
-    console.log();
-    p.log.message(
-      `If you understand the risks, re-run with:\n\n  ${pc.cyan(`npx wittyhub add ${source} --dangerously-accept-openclaw-risks`)}\n`
-    );
-    p.outro(pc.red('Installation blocked'));
-    process.exit(1);
-  }
-
-  try {
-    const spinner = p.spinner();
-
-    // Local path source: scan the directory directly, no API download.
-    // (Absolute paths, './x', '../x', '~', or bare names that exist on disk.)
-    if (looksLikeLocalPath(source)) {
-      const expanded = expandLocalPath(source);
-      if (!existsSync(expanded)) {
-        p.outro(pc.red(`Local path does not exist: ${expanded}`));
-        process.exit(1);
-      }
-      if (!isDirectory(expanded)) {
-        p.outro(pc.red(`Local path is not a directory: ${expanded}`));
-        process.exit(1);
-      }
-
-      const includeInternal = !!(options.skill && options.skill.length > 0);
-      spinner.start('Discovering skills...');
-      let skills: Skill[];
-      try {
-        skills = await discoverSkills(expanded, undefined, {
-          includeInternal,
-          fullDepth: options.fullDepth,
-        });
-      } finally {
-        spinner.stop('Discovery complete');
-      }
-
-      if (skills.length === 0) {
-        p.log.error(pc.red('No skills found'));
-        p.outro(
-          pc.red('No valid skills found. Skills require a SKILL.md with name and description.')
-        );
-        process.exit(1);
-      }
-
-      // Delegate the rest of the flow (list / select / install) to the shared helper.
-      await installLocalSkills(source, expanded, skills, options, agentResult);
-      return;
+  if (cloneInstall) {
+    const cloneUrl = toCloneUrl(source);
+    const ref = parseSource(source).ref;
+    spinner.start('Cloning repository...');
+    let clonedDir: string;
+    try {
+      clonedDir = await cloneRepo(cloneUrl, ref);
+    } catch (e) {
+      spinner.stop('Clone failed');
+      throw e;
     }
+    tempDir = clonedDir;
+    spinner.stop('Repository cloned');
 
-    // Step 1+2 (replaced): resolve `source` to skill_id(s), then download
-    // packaged archive(s) from the wittyhub API. The ZIP is extracted into a
-    // temp dir and fed into the existing discoverSkills flow.
-    //
-    // Three input forms are supported:
-    //   - repo-level ref: "source:owner/repo" → list all skills under repo
-    //   - full skill_id, e.g. "github:owner/repo/foo"
-    //   - repo URL + --skill <name>, e.g.
-    //     `add https://github.com/owner/repo --skill foo`
-    //     → here we query SEARCH_URL to look up the skill_id.
-    const skillNameForLookup = options.skill?.[0];
-    let skillIds: string[];
-
-    // Normalize repo URLs (https://gitcode.com/owner/repo, git@…, ssh://…)
-    // into repo-level refs (source:owner/repo) so they flow through the
-    // same list-API path instead of the search API.
-    const repoRef = isRepoLevelRef(source) ? source : repoUrlToRef(source);
-    const repoLevel = repoRef !== null;
-
+    // 记录真实仓库 URL 与 ref（如有）供后续 telemetry / lock 使用。
+    parsed = { type: parseSource(cloneUrl).type, url: cloneUrl, ...(ref ? { ref } : {}) };
+  } else {
     // For repo-level refs, resolve via list API (no download) and let the
     // user pick skills *before* downloading anything. This avoids pulling
     // dozens of archives just to render a selection list.
@@ -1810,11 +1721,166 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
     // Synthetic parsed source consumed by downstream telemetry/lock-file logic.
     // `skillId` is the API skill_id (not a git URL), so getOwnerRepo() returns
     // null — telemetry gating and lock-file writes are skipped for now.
-    const parsed: ParsedSource = {
-      type: 'git',
-      url: skillIds[0]!,
-    };
-    const repoPrivacyPromise: Promise<boolean | null> = Promise.resolve(null);
+    parsed = { type: 'git', url: skillIds[0]! };
+  }
+
+  // GitHub 源提前做隐私检测（与安装并行）；其余源保持 null 以维持原发送语义。
+  const privacyOwnerRepo = getOwnerRepo(parsed);
+  repoPrivacyPromise =
+    parsed.type === 'github' && privacyOwnerRepo
+      ? isSourcePrivate(privacyOwnerRepo).catch(() => null)
+      : Promise.resolve(null);
+
+  return { skillIds, parsed, repoPrivacyPromise, tempDir, repoLevel, cloneInstall };
+}
+
+export async function runAdd(args: string[], options: AddOptions = {}): Promise<void> {
+  const source = args[0];
+  let installTipShown = false;
+
+  const showInstallTip = (): void => {
+    if (installTipShown) return;
+    p.log.message(
+      pc.dim('Tip: use the --yes (-y) and --global (-g) flags to install without prompts.')
+    );
+    installTipShown = true;
+  };
+
+  if (!source) {
+    console.log();
+    console.log(
+      pc.bgRed(pc.white(pc.bold(' ERROR '))) + ' ' + pc.red('Missing required argument: source')
+    );
+    console.log();
+    console.log(pc.dim('  Usage:'));
+    console.log(
+      `    ${pc.cyan('npx skillhub-cli add')} ${pc.yellow('<source>')} ${pc.dim('[options]')}`
+    );
+    console.log();
+    console.log(pc.dim('  Example:'));
+    console.log(`    ${pc.cyan('npx skillhub-cli add')} ${pc.yellow('vercel-labs/agent-skills')}`);
+    console.log();
+    process.exit(1);
+  }
+
+  // --all implies --skill '*' and --agent '*' and -y
+  if (options.all) {
+    options.skill = ['*'];
+    options.agent = ['*'];
+    options.yes = true;
+  }
+
+  // Auto-enable non-interactive mode when running inside an AI agent
+  const agentResult = await detectAgent();
+  if (agentResult.isAgent) {
+    options.yes = true;
+    // Auto-select the detected agent + universal agents (unless user explicitly specified agents)
+    if (!options.agent || options.agent.length === 0) {
+      const mappedAgent = getAgentType(agentResult.agent.name);
+      if (mappedAgent) {
+        options.agent = ensureUniversalAgents([mappedAgent]);
+      }
+    }
+  }
+
+  console.log();
+  if (!agentResult.isAgent) {
+    p.intro(pc.bgCyan(pc.black(' skills ')));
+  }
+
+  if (agentResult.isAgent) {
+    p.log.info(
+      pc.bgCyan(pc.black(pc.bold(` ${agentResult.agent.name} `))) +
+        ' ' +
+        'Agent detected — installing non-interactively'
+    );
+  } else if (!process.stdin.isTTY) {
+    showInstallTip();
+  }
+
+  let tempDir: string | null = null;
+
+  // Block openclaw sources unless explicitly opted in (checked before any
+  // network request or local scan).
+  const sourceOwner = source.split('/')[0]?.toLowerCase();
+  if (sourceOwner === 'openclaw' && !options.dangerouslyAcceptOpenclawRisks) {
+    console.log();
+    p.log.warn(pc.yellow(pc.bold('⚠ OpenClaw skills are unverified community submissions.')));
+    p.log.message(
+      pc.yellow(
+        'This source contains user-submitted skills that have not been reviewed for safety or quality.'
+      )
+    );
+    p.log.message(pc.yellow('Skills run with full agent permissions and could be malicious.'));
+    console.log();
+    p.log.message(
+      `If you understand the risks, re-run with:\n\n  ${pc.cyan(`npx skillhub-cli add ${source} --dangerously-accept-openclaw-risks`)}\n`
+    );
+    p.outro(pc.red('Installation blocked'));
+    process.exit(1);
+  }
+
+  try {
+    const spinner = p.spinner();
+
+    // Local path source: scan the directory directly, no API download.
+    // (Absolute paths, './x', '../x', '~', or bare names that exist on disk.)
+    if (looksLikeLocalPath(source)) {
+      const expanded = expandLocalPath(source);
+      if (!existsSync(expanded)) {
+        p.outro(pc.red(`Local path does not exist: ${expanded}`));
+        process.exit(1);
+      }
+      if (!isDirectory(expanded)) {
+        p.outro(pc.red(`Local path is not a directory: ${expanded}`));
+        process.exit(1);
+      }
+
+      const includeInternal = !!(options.skill && options.skill.length > 0);
+      spinner.start('Discovering skills...');
+      let skills: Skill[];
+      try {
+        skills = await discoverSkills(expanded, undefined, {
+          includeInternal,
+          fullDepth: options.fullDepth,
+        });
+      } finally {
+        spinner.stop('Discovery complete');
+      }
+
+      if (skills.length === 0) {
+        p.log.error(pc.red('No skills found'));
+        p.outro(
+          pc.red('No valid skills found. Skills require a SKILL.md with name and description.')
+        );
+        process.exit(1);
+      }
+
+      // Delegate the rest of the flow (list / select / install) to the shared helper.
+      await installLocalSkills(source, expanded, skills, options, agentResult);
+      return;
+    }
+
+    // Step 1+2 (replaced): resolve `source` to skill_id(s), then download
+    // packaged archive(s) from the SkillHub API. The ZIP is extracted into a
+    // temp dir and fed into the existing discoverSkills flow.
+    //
+    // Three input forms are supported:
+    //   - repo-level ref: "source:owner/repo" → list all skills under repo
+    //   - full skill_id, e.g. "github:owner/repo/foo"
+    //   - repo URL + --skill <name>, e.g.
+    //     `add https://github.com/owner/repo --skill foo`
+    //     → here we query SEARCH_URL to look up the skill_id.
+    // resolve `source` → skill_ids / temp dir：clone（add <repo> --skill <name>）
+    // 或 SkillHub API 下载两条路径已抽到 prepareSkillSource，这里接住结果继续
+    // discover / 选择 / 安装流程。
+    const prepared = await prepareSkillSource(source, options, spinner);
+    const skillIds = prepared.skillIds;
+    const parsed: ParsedSource = prepared.parsed;
+    const repoPrivacyPromise = prepared.repoPrivacyPromise;
+    const repoLevel = prepared.repoLevel;
+    const cloneInstall = prepared.cloneInstall;
+    tempDir = prepared.tempDir;
 
     // Include internal skills when a specific skill is explicitly requested
     // (via --skill). The @skill source syntax is no longer parsed now that
@@ -1822,7 +1888,6 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
     const includeInternal = !!(options.skill && options.skill.length > 0);
 
     let skills: Skill[];
-    let blobResult: BlobInstallResult | null = null;
 
     spinner.start('Discovering skills...');
     skills = await discoverSkills(tempDir, undefined, {
@@ -1839,9 +1904,7 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
       process.exit(1);
     }
 
-    if (!blobResult) {
-      spinner.stop(`Found ${pc.green(skills.length)} skill${skills.length > 1 ? 's' : ''}`);
-    }
+    spinner.stop(`Found ${pc.green(skills.length)} skill${skills.length > 1 ? 's' : ''}`);
 
     if (options.list) {
       // For repo-level refs, --list was already handled above (no download).
@@ -1898,8 +1961,10 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
     let selectedSkills: Skill[];
 
     // For repo-level refs, selection happened before download — install all
-    // discovered skills (only selected ones were downloaded).
-    if (repoLevel) {
+    // discovered skills (only selected ones were downloaded). Clone installs
+    // (add <repo> --skill <name>) discover the whole repo, so selection happens
+    // here via the --skill filter below.
+    if (repoLevel && !cloneInstall) {
       selectedSkills = skills;
       if (skills.length === 1) {
         p.log.info(`Skill: ${pc.cyan(getSkillDisplayName(skills[0]!))}`);
@@ -2023,7 +2088,24 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
         process.exit(1);
       }
 
-      targetAgents = options.agent as AgentType[];
+      if (options.yes) {
+        // Explicit -a + -y: install to the specified agents only.
+        targetAgents = options.agent as AgentType[];
+      } else {
+        // Explicit -a without -y: pin the specified agents and let the menu add more.
+        const selected = await selectAgentsInteractive({
+          global: options.global,
+          locked: options.agent as AgentType[],
+        });
+
+        if (p.isCancel(selected)) {
+          p.cancel('Installation cancelled');
+          await cleanup(tempDir);
+          process.exit(0);
+        }
+
+        targetAgents = selected as AgentType[];
+      }
     } else {
       spinner.start('Loading agents...');
       const installedAgents = await detectInstalledAgents();
@@ -2048,7 +2130,10 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
           targetAgents = ['eve'];
           p.log.info(`Installing to: ${pc.cyan(agents.eve.displayName)}`);
         } else {
-          const selected = await selectAgentsInteractive({ global: options.global });
+          const selected = await selectAgentsInteractive({
+            global: options.global,
+            preset: installedAgents.filter((a) => a !== 'eve'),
+          });
 
           if (p.isCancel(selected)) {
             p.cancel('Installation cancelled');
@@ -2058,47 +2143,25 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
 
           targetAgents = selected as AgentType[];
         }
-      } else if (installedAgents.length === 0) {
-        if (options.yes) {
-          targetAgents = validAgents as AgentType[];
-          p.log.info('Installing to all agents');
+      } else if (options.yes) {
+        if (installedAgents.length === 0) {
+          // No detected agent: fall back to the shared universal dir instead of
+          // blasting every agent's directory (which may not even be installed).
+          targetAgents = ['universal'];
+          p.log.info('No agents detected — installing to shared .agents/skills');
         } else {
-          p.log.info('Select agents to install skills to');
-
-          const allAgentChoices = Object.entries(agents)
-            .filter(([key]) => key !== 'eve')
-            .map(([key, config]) => ({
-              value: key as AgentType,
-              label: config.displayName,
-            }));
-
-          // Use helper to prompt with search
-          const selected = await promptForAgents(
-            'Which agents do you want to install to?',
-            allAgentChoices
-          );
-
-          if (p.isCancel(selected)) {
-            p.cancel('Installation cancelled');
-            await cleanup(tempDir);
-            process.exit(0);
-          }
-
-          targetAgents = selected as AgentType[];
-        }
-      } else if (installedAgents.length === 1 || options.yes) {
-        // Auto-select detected agents + ensure universal agents are included
-        targetAgents = ensureUniversalAgents(installedAgents);
-        if (installedAgents.length === 1) {
-          const firstAgent = installedAgents[0]!;
-          p.log.info(`Installing to: ${pc.cyan(agents[firstAgent].displayName)}`);
-        } else {
+          // Auto-select detected agents + ensure universal agents are included
+          targetAgents = ensureUniversalAgents(installedAgents);
           p.log.info(
             `Installing to: ${installedAgents.map((a) => pc.cyan(agents[a].displayName)).join(', ')}`
           );
         }
       } else {
-        const selected = await selectAgentsInteractive({ global: options.global });
+        // Interactive: always prompt, pre-selecting detected agents
+        const selected = await selectAgentsInteractive({
+          global: options.global,
+          preset: installedAgents.filter((a) => a !== 'eve'),
+        });
 
         if (p.isCancel(selected)) {
           p.cancel('Installation cancelled');
@@ -2391,15 +2454,7 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
       for (const target of installTargets) {
         const { agent, subagent } = target;
         let result;
-        if (blobResult && 'files' in skill) {
-          // Blob-based install: write files from snapshot
-          const blobSkill = skill as BlobSkill;
-          result = await installBlobSkillForAgent(
-            { installName: blobSkill.name, files: blobSkill.files },
-            agent,
-            { global: installGlobally, mode: installMode, eveSubagent: subagent }
-          );
-        } else if (tempDir && skill.path === tempDir && skill.rawContent) {
+        if (tempDir && skill.path === tempDir && skill.rawContent) {
           // Remote root-level SKILL.md: install the skill file, not the whole repository.
           result = await installBlobSkillForAgent(
             { installName: skill.name, files: [{ path: 'SKILL.md', contents: skill.rawContent }] },
@@ -2430,7 +2485,7 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
     const failed = results.filter((r) => !r.success);
     // Track installation result
     // Build skillFiles map: { skillName: relative path to SKILL.md from repo root }
-    const skillFiles = buildSkillFiles(selectedSkills, tempDir, blobResult);
+    const skillFiles = buildSkillFiles(selectedSkills, tempDir);
 
     // Normalize source to owner/repo format for telemetry
     const normalizedSource = getOwnerRepo(parsed);
@@ -2448,16 +2503,6 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
         // For sources without a privacy check, repoPrivacyPromise returns null,
         // so we always send telemetry.
         if (isPrivate === false || (isPrivate === null && parsed.type !== 'github')) {
-          console.log(
-            '[telemetry-debug-1]',
-            JSON.stringify({
-              isPrivate,
-              parsedType: parsed.type,
-              normalizedSource,
-              sourceType: parsed.type,
-              skillFiles: JSON.stringify(skillFiles),
-            })
-          );
           track({
             event: 'install',
             source: normalizedSource,
@@ -2470,15 +2515,6 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
         }
       } else {
         // If we can't parse owner/repo, still send telemetry (for non-GitHub sources)
-        console.log(
-          '[telemetry-debug-2]',
-          JSON.stringify({
-            parsedType: parsed.type,
-            normalizedSource,
-            sourceType: parsed.type,
-            skillFiles: JSON.stringify(skillFiles),
-          })
-        );
         track({
           event: 'install',
           source: normalizedSource,
@@ -2498,7 +2534,7 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
       // For GitHub clone installs, fetch the repo tree once and reuse it
       // for all skills — avoids N sequential API calls that take ~400ms each.
       let cachedTree: Awaited<ReturnType<typeof fetchRepoTree>> | undefined;
-      if (parsed.type === 'github' && !blobResult) {
+      if (parsed.type === 'github') {
         cachedTree = await fetchRepoTree(normalizedSource, parsed.ref, getGitHubToken);
       }
 
@@ -2509,13 +2545,7 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
             let skillFolderHash = '';
             const skillPathValue = skillFiles[skill.name];
 
-            if (blobResult && skillPathValue) {
-              const hash = getSkillFolderHashFromTree(
-                (blobResult as BlobInstallResult).tree,
-                skillPathValue
-              );
-              if (hash) skillFolderHash = hash;
-            } else if (parsed.type === 'github' && skillPathValue && cachedTree) {
+            if (parsed.type === 'github' && skillPathValue && cachedTree) {
               const hash = getSkillFolderHashFromTree(cachedTree, skillPathValue);
               if (hash) skillFolderHash = hash;
             } else if (skillPathValue && tempDir) {
@@ -2555,13 +2585,12 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
         const skillDisplayName = getSkillDisplayName(skill);
         if (successfulSkillNames.has(skillDisplayName)) {
           try {
-            // For blob skills, use the snapshot hash; for disk skills, compute from files
+            // For root SKILL.md remote installs, hash the single file; otherwise
+            // compute from the skill directory on disk.
             const computedHash =
-              blobResult && 'snapshotHash' in skill
-                ? (skill as BlobSkill).snapshotHash
-                : tempDir && skill.path === tempDir && skill.rawContent
-                  ? computeSingleFileSkillHash(skill.rawContent)
-                  : await computeSkillFolderHash(skill.path);
+              tempDir && skill.path === tempDir && skill.rawContent
+                ? computeSingleFileSkillHash(skill.rawContent)
+                : await computeSkillFolderHash(skill.path);
             const skillPathValue = skillFiles[skill.name];
             await addSkillToLocalLock(
               skill.name,
@@ -2776,13 +2805,13 @@ async function promptForFindSkills(
         });
       } catch {
         p.log.warn('Failed to install find-skills. You can try again with:');
-        p.log.message(pc.dim('  npx wittyhub add vercel-labs/skills@find-skills -g -y --all'));
+        p.log.message(pc.dim('  npx skillhub-cli add vercel-labs/skills@find-skills -g -y --all'));
       }
     } else {
       // User declined - dismiss the prompt
       await dismissPrompt('findSkillsPrompt');
       p.log.message(
-        pc.dim('You can install it later with: npx wittyhub add vercel-labs/skills@find-skills')
+        pc.dim('You can install it later with: npx skillhub-cli add vercel-labs/skills@find-skills')
       );
     }
   } catch {
