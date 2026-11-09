@@ -7,7 +7,7 @@ describe('skills CLI', () => {
   describe('--help', () => {
     it('should display help message', () => {
       const output = runCliOutput(['--help']);
-      expect(output).toContain('Usage: skillhub-cli <command> [options]');
+      expect(output).toContain('Usage: wittyhub <command> [options]');
       expect(output).toContain('Manage Skills:');
       expect(output).toContain('init [name]');
       expect(output).toContain('add <package>');
@@ -68,10 +68,10 @@ describe('skills CLI', () => {
       });
       const output = stripLogo(result.stdout);
       expect(output).toContain('The open agent skills ecosystem');
-      expect(output).toContain('npx skillhub-cli add');
-      expect(output).toContain('npx skillhub-cli update');
-      expect(output).toContain('npx skillhub-cli init');
-      expect(output).toContain('npx skillhub-cli validate');
+      expect(output).toContain('npx wittyhub add');
+      expect(output).toContain('npx wittyhub update');
+      expect(output).toContain('npx wittyhub init');
+      expect(output).toContain('npx wittyhub validate');
       expect(output).toContain('skillhub.openeuler.org');
     });
   });
@@ -81,7 +81,7 @@ describe('skills CLI', () => {
       const output = runCliOutput(['unknown-command']);
       expect(output).toMatchInlineSnapshot(`
         "Unknown command: unknown-command
-        Run skillhub-cli --help for usage.
+        Run wittyhub --help for usage.
         "
       `);
     });

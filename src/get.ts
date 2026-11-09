@@ -5,8 +5,8 @@ import { normalizeSkillId } from './skill-resolver.ts';
 
 // ─── Get command ───
 // 查看某个技能的详细信息（作者/分类/版本/描述/标签等）。
-//   skillhub-cli get <skill_id>
-//   skillhub-cli get github:vercel-labs/agent-skills/deploy-to-vercel
+//   wittyhub get <skill_id>
+//   wittyhub get github:vercel-labs/agent-skills/deploy-to-vercel
 
 export interface ParseGetOptionsResult {
   skillId: string;
@@ -178,7 +178,7 @@ export async function runGet(args: string[]): Promise<void> {
   const { skillId, errors } = parseGetOptions(args);
   if (errors.length > 0) {
     for (const error of errors) console.error(pc.red(error));
-    console.error('Usage: skillhub-cli get <skill_id>');
+    console.error('Usage: wittyhub get <skill_id>');
     return;
   }
 

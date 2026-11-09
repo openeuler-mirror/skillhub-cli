@@ -549,12 +549,12 @@ export async function runFind(args: string[]): Promise<void> {
   const owner = findOptions.owner;
   const isNonInteractive = !process.stdin.isTTY;
   const agentTip = `${DIM}Tip: if running in a coding agent, follow these steps:${RESET}
-${DIM}  1) npx skillhub-cli find [query] [options]${RESET}
-${DIM}  2) npx skillhub-cli add <skill_id>${RESET}`;
+${DIM}  1) npx wittyhub find [query] [options]${RESET}
+${DIM}  2) npx wittyhub add <skill_id>${RESET}`;
 
   if (errors.length > 0) {
     for (const error of errors) console.error(error);
-    console.error('Usage: npx skillhub-cli find <query> [options]');
+    console.error('Usage: npx wittyhub find <query> [options]');
     return;
   }
 
@@ -580,7 +580,7 @@ ${DIM}  2) npx skillhub-cli add <skill_id>${RESET}`;
       return;
     }
 
-    console.log(`${DIM}Install with${RESET} npx skillhub-cli add ${TEXT}<skill_id>${RESET}`);
+    console.log(`${DIM}Install with${RESET} npx wittyhub add ${TEXT}<skill_id>${RESET}`);
     console.log();
 
     for (const skill of results.slice(0, 6)) {
@@ -611,7 +611,7 @@ ${DIM}  2) npx skillhub-cli add <skill_id>${RESET}`;
   if (isNonInteractive || (await isRunningInAgent())) {
     console.log(agentTip);
     console.log();
-    console.log(`${DIM}Usage: npx skillhub-cli find <query> [options]${RESET}`);
+    console.log(`${DIM}Usage: npx wittyhub find <query> [options]${RESET}`);
     return;
   }
 
@@ -632,7 +632,7 @@ ${DIM}  2) npx skillhub-cli add <skill_id>${RESET}`;
   }
 
   // Install via skill_id — consistent with the identifier shown in search
-  // results and the recommended `skillhub-cli add <skill_id>` usage.
+  // results and the recommended `wittyhub add <skill_id>` usage.
   const skillId = selected.slug;
   const skillName = selected.name;
 

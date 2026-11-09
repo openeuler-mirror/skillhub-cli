@@ -18,16 +18,16 @@ Use this skill when the user:
 - Wants to search for tools, templates, or workflows
 - Mentions they wish they had help with a specific domain (design, testing, deployment, etc.)
 
-## What is the SkillHub CLI?
+## What is the WittyHub CLI?
 
-The SkillHub CLI (`npx skillhub-cli`) is the package manager for the open agent skills ecosystem. Skills are modular packages that extend agent capabilities with specialized knowledge, workflows, and tools.
+The WittyHub CLI (`npx wittyhub`) is the package manager for the open agent skills ecosystem. Skills are modular packages that extend agent capabilities with specialized knowledge, workflows, and tools.
 
 **Key commands:**
 
-- `npx skillhub-cli find [query] [--owner <owner>]` - Search for skills interactively or by keyword, optionally scoped to a GitHub owner
-- `npx skillhub-cli add <package>` - Install a skill from GitHub or other sources
-- `npx skillhub-cli check` - Check for skill updates
-- `npx skillhub-cli update` - Update all installed skills
+- `npx wittyhub find [query] [--owner <owner>]` - Search for skills interactively or by keyword, optionally scoped to a GitHub owner
+- `npx wittyhub add <package>` - Install a skill from GitHub or other sources
+- `npx wittyhub check` - Check for skill updates
+- `npx wittyhub update` - Update all installed skills
 
 **Browse skills at:** https://skills.sh/
 
@@ -54,14 +54,14 @@ For example, top skills for web development include:
 If the leaderboard doesn't cover the user's need, run the find command:
 
 ```bash
-npx skillhub-cli find [query] [--owner <owner>]
+npx wittyhub find [query] [--owner <owner>]
 ```
 
 For example:
 
-- User asks "how do I make my React app faster?" → `npx skillhub-cli find react performance`
-- User asks "can you help me with PR reviews?" → `npx skillhub-cli find pr review`
-- User asks "I need to create a changelog" → `npx skillhub-cli find changelog`
+- User asks "how do I make my React app faster?" → `npx wittyhub find react performance`
+- User asks "can you help me with PR reviews?" → `npx wittyhub find pr review`
+- User asks "I need to create a changelog" → `npx wittyhub find changelog`
 
 ### Step 4: Verify Quality Before Recommending
 
@@ -88,7 +88,7 @@ React and Next.js performance optimization guidelines from Vercel Engineering.
 (185K installs)
 
 To install it:
-npx skillhub-cli add vercel-labs/agent-skills@react-best-practices
+npx wittyhub add vercel-labs/agent-skills@react-best-practices
 
 Learn more: https://skills.sh/vercel-labs/agent-skills/react-best-practices
 ```
@@ -98,7 +98,7 @@ Learn more: https://skills.sh/vercel-labs/agent-skills/react-best-practices
 If the user wants to proceed, you can install the skill for them:
 
 ```bash
-npx skillhub-cli add <owner/repo@skill> -g -y
+npx wittyhub add <owner/repo@skill> -g -y
 ```
 
 The `-g` flag installs globally (user-level) and `-y` skips confirmation prompts.
@@ -129,7 +129,7 @@ If no relevant skills exist:
 
 1. Acknowledge that no existing skill was found
 2. Offer to help with the task directly using your general capabilities
-3. Suggest the user could create their own skill with `npx skillhub-cli init`
+3. Suggest the user could create their own skill with `npx wittyhub init`
 
 Example:
 
@@ -138,5 +138,5 @@ I searched for skills related to "xyz" but didn't find any matches.
 I can still help you with this task directly! Would you like me to proceed?
 
 If this is something you do often, you could create your own skill:
-npx skillhub-cli init my-xyz-skill
+npx wittyhub init my-xyz-skill
 ```

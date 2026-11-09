@@ -1,4 +1,4 @@
-# skillhub-cli
+# wittyhub-cli
 
 The CLI for the open agent skills ecosystem.
 
@@ -14,17 +14,17 @@ Supports **OpenCode**, **Claude Code**, **Codex**, **Cursor**, and [72 more](#su
 
 ```bash
 # Install by skill_id (recommended)
-npx skillhub-cli add github:vercel-labs/agent-skills/deploy-to-vercel
+npx wittyhub add github:vercel-labs/agent-skills/deploy-to-vercel
 
 # Install from a repo reference (interactive selection)
-npx skillhub-cli add atomgit:openeuler/witty-diagnosis-agent
+npx wittyhub add atomgit:openeuler/witty-diagnosis-agent
 # Install a specific skill (resolved via SkillHub index)
-npx skillhub-cli add atomgit:openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
+npx wittyhub add atomgit:openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
 
 # Or by repo URL
-npx skillhub-cli add https://atomgit.com/openeuler/witty-diagnosis-agent
+npx wittyhub add https://atomgit.com/openeuler/witty-diagnosis-agent
 # --skill clones the repo directly and installs the named skill
-npx skillhub-cli add https://atomgit.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
+npx wittyhub add https://atomgit.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
 ```
 
 > **Tip:** `skill_id` format is `{source}:{owner}/{repo}/{skill_name}`. Omitting the `{source}:` prefix defaults to `github:`.
@@ -35,28 +35,28 @@ npx skillhub-cli add https://atomgit.com/openeuler/witty-diagnosis-agent --skill
 
 ### Source Formats
 
-`skillhub-cli add` accepts `skill_id`, repo references, and URLs:
+`wittyhub add` accepts `skill_id`, repo references, and URLs:
 
 ```bash
 # skill_id (installs a single skill directly)
-npx skillhub-cli add github:vercel-labs/agent-skills/deploy-to-vercel
+npx wittyhub add github:vercel-labs/agent-skills/deploy-to-vercel
 
 # Repo reference: source:owner/repo (lists all skills in the repo)
-npx skillhub-cli add github:vercel-labs/agent-skills
-npx skillhub-cli add atomgit:openeuler/witty-diagnosis-agent
+npx wittyhub add github:vercel-labs/agent-skills
+npx wittyhub add atomgit:openeuler/witty-diagnosis-agent
 
 # Repo URL (auto-parsed to source:owner/repo)
-npx skillhub-cli add https://github.com/vercel-labs/agent-skills
-npx skillhub-cli add https://atomgit.com/openeuler/witty-diagnosis-agent
+npx wittyhub add https://github.com/vercel-labs/agent-skills
+npx wittyhub add https://atomgit.com/openeuler/witty-diagnosis-agent
 
 # SSH URL (auto-parsed to source:owner/repo)
-npx skillhub-cli add git@github.com:vercel-labs/agent-skills.git
+npx wittyhub add git@github.com:vercel-labs/agent-skills.git
 
 # Direct path to a skill in a repo
-npx skillhub-cli add https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines
+npx wittyhub add https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines
 
 # Local path
-npx skillhub-cli add ./my-local-skills
+npx wittyhub add ./my-local-skills
 ```
 
 Repo URLs from known hosts (`github.com`, `atomgit.com`, `gitlab.com`, `gitee.com`) are automatically
@@ -79,35 +79,35 @@ the repository and installs the named skill(s) directly; otherwise it queries th
 
 ```bash
 # Install by skill_id (recommended for single skills)
-npx skillhub-cli add atomgit:openeuler/witty-diagnosis-agent/system-resource-diagnosis
+npx wittyhub add atomgit:openeuler/witty-diagnosis-agent/system-resource-diagnosis
 
 # List all skills in a repository
-npx skillhub-cli add github:vercel-labs/agent-skills --list
-npx skillhub-cli add https://github.com/vercel-labs/agent-skills --list
+npx wittyhub add github:vercel-labs/agent-skills --list
+npx wittyhub add https://github.com/vercel-labs/agent-skills --list
 
 # Install a specific skill from a repo
-npx skillhub-cli add github:vercel-labs/agent-skills --skill web-design-guidelines
-npx skillhub-cli add https://atomgit.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
+npx wittyhub add github:vercel-labs/agent-skills --skill web-design-guidelines
+npx wittyhub add https://atomgit.com/openeuler/witty-diagnosis-agent --skill system-resource-diagnosis
 
 # Install all skills from a repo (interactive selection)
-npx skillhub-cli add github:vercel-labs/agent-skills
-npx skillhub-cli add git@github.com:vercel-labs/agent-skills.git
+npx wittyhub add github:vercel-labs/agent-skills
+npx wittyhub add git@github.com:vercel-labs/agent-skills.git
 
 # Install to specific agents
-npx skillhub-cli add github:vercel-labs/agent-skills -a claude-code -a opencode
+npx wittyhub add github:vercel-labs/agent-skills -a claude-code -a opencode
 
 # Non-interactive installation (CI/CD friendly)
-npx skillhub-cli add github:vercel-labs/agent-skills --skill web-design-guidelines -g -a claude-code -y
+npx wittyhub add github:vercel-labs/agent-skills --skill web-design-guidelines -g -a claude-code -y
 
 # Install all skills from a repo to all agents
-npx skillhub-cli add github:vercel-labs/agent-skills --all
-npx skillhub-cli add https://github.com/vercel-labs/agent-skills --all
+npx wittyhub add github:vercel-labs/agent-skills --all
+npx wittyhub add https://github.com/vercel-labs/agent-skills --all
 
 # Install all skills to specific agents
-npx skillhub-cli add github:vercel-labs/agent-skills --skill '*' -a claude-code
+npx wittyhub add github:vercel-labs/agent-skills --skill '*' -a claude-code
 
 # Install specific skills to all agents
-npx skillhub-cli add atomgit:openeuler/witty-diagnosis-agent --agent '*' --skill system-resource-diagnosis
+npx wittyhub add atomgit:openeuler/witty-diagnosis-agent --agent '*' --skill system-resource-diagnosis
 ```
 
 ### Installation Scope
@@ -130,81 +130,81 @@ When installing interactively, you can choose:
 
 | Command                         | Description                                             |
 | ------------------------------- | ------------------------------------------------------- |
-| `npx skillhub-cli list`             | List installed skills (alias: `ls`)                     |
-| `npx skillhub-cli find [query]`     | Search for skills interactively or by keyword           |
-| `npx skillhub-cli remove [skills]`  | Remove installed skills from agents                     |
-| `npx skillhub-cli update [skills]`  | Update installed skills to latest versions              |
-| `npx skillhub-cli get <skill_id>`   | View skill details (author, version, description, tags) |
-| `npx skillhub-cli audit <skill_id>` | Show security audit result (risk level + risk signals)  |
-| `npx skillhub-cli init [name]`      | Create a new SKILL.md template                          |
-| `npx skillhub-cli validate <path>`  | Validate a local skill for spec compliance              |
+| `npx wittyhub list`             | List installed skills (alias: `ls`)                     |
+| `npx wittyhub find [query]`     | Search for skills interactively or by keyword           |
+| `npx wittyhub remove [skills]`  | Remove installed skills from agents                     |
+| `npx wittyhub update [skills]`  | Update installed skills to latest versions              |
+| `npx wittyhub get <skill_id>`   | View skill details (author, version, description, tags) |
+| `npx wittyhub audit <skill_id>` | Show security audit result (risk level + risk signals)  |
+| `npx wittyhub init [name]`      | Create a new SKILL.md template                          |
+| `npx wittyhub validate <path>`  | Validate a local skill for spec compliance              |
 
-### `skillhub-cli list`
+### `wittyhub list`
 
 List all installed skills. Similar to `npm ls`.
 
 ```bash
 # List all installed skills (project and global)
-npx skillhub-cli list
+npx wittyhub list
 
 # List only global skills
-npx skillhub-cli ls -g
+npx wittyhub ls -g
 
 # Filter by specific agents
-npx skillhub-cli ls -a claude-code -a cursor
+npx wittyhub ls -a claude-code -a cursor
 ```
 
-### `skillhub-cli find`
+### `wittyhub find`
 
 Search for skills interactively or by keyword.
 
 ```bash
 # Interactive search (fzf-style)
-npx skillhub-cli find
+npx wittyhub find
 
 # Search by keyword
-npx skillhub-cli find typescript
+npx wittyhub find typescript
 
 # Search across every repository owned by an organization or user
-npx skillhub-cli find react --owner vercel
+npx wittyhub find react --owner vercel
 ```
 
-### `skillhub-cli get`
+### `wittyhub get`
 
 View skill details by `skill_id`. Supports shorthand auto-completion — if you omit the source type prefix, `github:` is automatically prepended.
 
 ```bash
 # Full skill_id format
-npx skillhub-cli get atomgit:openeuler/witty-diagnosis-agent/system-resource-diagnosis
+npx wittyhub get atomgit:openeuler/witty-diagnosis-agent/system-resource-diagnosis
 ```
 
-### `skillhub-cli audit`
+### `wittyhub audit`
 
 Show security audit results for a skill. Supports the same `skill_id` format and shorthand as `get`.
 
 ```bash
 # Full skill_id
-npx skillhub-cli audit atomgit:openeuler/witty-diagnosis-agent/system-resource-diagnosis
+npx wittyhub audit atomgit:openeuler/witty-diagnosis-agent/system-resource-diagnosis
 ```
 
-### `skillhub-cli update`
+### `wittyhub update`
 
 ```bash
 # Update all skills (interactive scope prompt)
-npx skillhub-cli update
+npx wittyhub update
 
 # Update a single skill by name
-npx skillhub-cli update my-skill
+npx wittyhub update my-skill
 
 # Update multiple specific skills
-npx skillhub-cli update frontend-design web-design-guidelines
+npx wittyhub update frontend-design web-design-guidelines
 
 # Update only global or project skills
-npx skillhub-cli update -g
-npx skillhub-cli update -p
+npx wittyhub update -g
+npx wittyhub update -p
 
 # Non-interactive (auto-detects scope: project if in a project, else global)
-npx skillhub-cli update -y
+npx wittyhub update -y
 ```
 
 | Option          | Description                                                               |
@@ -214,47 +214,47 @@ npx skillhub-cli update -y
 | `-y, --yes`     | Skip scope prompt (auto-detect: project if in a project dir, else global) |
 | `[skills...]`   | Update specific skills by name instead of all                             |
 
-### `skillhub-cli init`
+### `wittyhub init`
 
 ```bash
 # Create SKILL.md in current directory
-npx skillhub-cli init
+npx wittyhub init
 
 # Create a new skill in a subdirectory
-npx skillhub-cli init my-skill
+npx wittyhub init my-skill
 ```
 
-### `skillhub-cli remove`
+### `wittyhub remove`
 
 Remove installed skills from agents.
 
 ```bash
 # Remove interactively (select from installed skills)
-npx skillhub-cli remove
+npx wittyhub remove
 
 # Remove specific skill by name
-npx skillhub-cli remove web-design-guidelines
+npx wittyhub remove web-design-guidelines
 
 # Remove multiple skills
-npx skillhub-cli remove frontend-design web-design-guidelines
+npx wittyhub remove frontend-design web-design-guidelines
 
 # Remove from global scope
-npx skillhub-cli remove --global web-design-guidelines
+npx wittyhub remove --global web-design-guidelines
 
 # Remove from specific agents only
-npx skillhub-cli remove --agent claude-code cursor my-skill
+npx wittyhub remove --agent claude-code cursor my-skill
 
 # Remove all installed skills without confirmation
-npx skillhub-cli remove --all
+npx wittyhub remove --all
 
 # Remove all skills from a specific agent
-npx skillhub-cli remove --skill '*' -a cursor
+npx wittyhub remove --skill '*' -a cursor
 
 # Remove a specific skill from all agents
-npx skillhub-cli remove my-skill --agent '*'
+npx wittyhub remove my-skill --agent '*'
 
 # Use 'rm' alias
-npx skillhub-cli rm my-skill
+npx wittyhub rm my-skill
 ```
 
 | Option         | Description                                      |
@@ -545,7 +545,7 @@ Ensure you have write access to the target directory.
 
 ```bash
 # Install internal skills
-INSTALL_INTERNAL_SKILLS=1 npx skillhub-cli add vercel-labs/agent-skills --list
+INSTALL_INTERNAL_SKILLS=1 npx wittyhub add vercel-labs/agent-skills --list
 ```
 
 ## Telemetry

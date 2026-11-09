@@ -186,7 +186,7 @@ export async function fetchAuditData(
 
 /**
  * Fetch audit data for a single skill by its skill_id. Used when the skill_id
- * is already known (e.g. `skillhub-cli add <skill_id>`), so we can skip the
+ * is already known (e.g. `wittyhub add <skill_id>`), so we can skip the
  * owner/repo + skillFiles derivation step.
  */
 export async function fetchAuditBySkillId(
