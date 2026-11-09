@@ -121,7 +121,14 @@ ${BOLD}Manage Skills:${RESET}
                        frontmatter, required fields name/description, etc.)
 
 ${BOLD}Find Options:${RESET}
-  --owner <owner>        Search only repositories from a GitHub owner
+  --owner <owner>        Filter by Git owner (GitHub/AtomGit)
+  --category <cats>      Filter by category (comma-separated)
+  --tag <tags>           Filter by tags (comma-separated)
+  --platform <plats>     Filter by platform: community, enterprise, personal
+  --risk <levels>        Filter by risk level: safe, low, medium, high
+  --sort <sort>          Sort by: relevance, download_count, updated_at
+  --limit <n>            Max results returned (1-100, default 10)
+  --mode <mode>          Search mode: text, semantic, hybrid (default text)
 
 ${BOLD}Updates:${RESET}
   update [skills...]   Update skills to latest versions (alias: upgrade)
@@ -188,6 +195,7 @@ ${BOLD}Examples:${RESET}
   ${DIM}$${RESET} skillhub-cli find                          ${DIM}# interactive search${RESET}
   ${DIM}$${RESET} skillhub-cli find typescript               ${DIM}# search by keyword${RESET}
   ${DIM}$${RESET} skillhub-cli find react --owner vercel     ${DIM}# search within an owner${RESET}
+  ${DIM}$${RESET} skillhub-cli find k8s --category network --sort updated_at   ${DIM}# filter + sort${RESET}
   ${DIM}$${RESET} skillhub-cli update
   ${DIM}$${RESET} skillhub-cli update my-skill             ${DIM}# update a single skill${RESET}
   ${DIM}$${RESET} skillhub-cli update -g                    ${DIM}# update global skills only${RESET}
