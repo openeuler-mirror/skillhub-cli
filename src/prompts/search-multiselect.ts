@@ -271,18 +271,21 @@ export async function searchMultiselect<T>(
 
         // Selected summary (include locked items)
         lines.push(`${S_BAR}`);
-        const allSelectedLabels = [
-          ...(lockedSection ? lockedSection.items.map((i) => i.label) : []),
-          ...items.filter((item) => selected.has(item.value)).map((item) => item.label),
-        ];
-        if (allSelectedLabels.length === 0) {
+        const lockedCount = lockedSection
+          ? lockedSection.items.length + (lockedSection.hiddenCount ?? 0)
+          : 0;
+        const additionalCount = selected.size;
+        if (lockedCount === 0 && additionalCount === 0) {
           lines.push(`${S_BAR}  ${pc.dim('Selected: (none)')}`);
         } else {
-          const summary =
-            allSelectedLabels.length <= 3
-              ? allSelectedLabels.join(', ')
-              : `${allSelectedLabels.slice(0, 3).join(', ')} +${allSelectedLabels.length - 3} more`;
-          lines.push(`${S_BAR}  ${pc.green('Selected:')} ${summary}`);
+          const parts: string[] = [];
+          if (lockedCount > 0 && lockedSection) {
+            parts.push(`${pc.bold(String(lockedCount))} ${lockedSection.title}`);
+          }
+          if (additionalCount > 0) {
+            parts.push(`${pc.bold(String(additionalCount))} ${pc.dim('Additional agents')}`);
+          }
+          lines.push(`${S_BAR}  ${pc.green('Selected:')} ${parts.join(' + ')}`);
         }
 
         lines.push(`${pc.dim('└')}`);
