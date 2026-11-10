@@ -175,7 +175,14 @@ export async function searchMultiselect<T>(
     };
 
     const getFiltered = (): SearchItem<T>[] => {
-      return items.filter((item) => filter(item, query));
+      // 已选中的项排在最前面，其余保持原有顺序（Array.sort 稳定排序）
+      return items
+        .filter((item) => filter(item, query))
+        .sort((a, b) => {
+          const aSelected = selected.has(a.value) ? 1 : 0;
+          const bSelected = selected.has(b.value) ? 1 : 0;
+          return bSelected - aSelected;
+        });
     };
 
     const clearRender = (): void => {
