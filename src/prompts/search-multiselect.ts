@@ -175,7 +175,14 @@ export async function searchMultiselect<T>(
     };
 
     const getFiltered = (): SearchItem<T>[] => {
-      return items.filter((item) => filter(item, query));
+      // 已选中的项排在最前面，其余保持原有顺序（Array.sort 稳定排序）
+      return items
+        .filter((item) => filter(item, query))
+        .sort((a, b) => {
+          const aSelected = selected.has(a.value) ? 1 : 0;
+          const bSelected = selected.has(b.value) ? 1 : 0;
+          return bSelected - aSelected;
+        });
     };
 
     const clearRender = (): void => {
@@ -264,18 +271,21 @@ export async function searchMultiselect<T>(
 
         // Selected summary (include locked items)
         lines.push(`${S_BAR}`);
-        const allSelectedLabels = [
-          ...(lockedSection ? lockedSection.items.map((i) => i.label) : []),
-          ...items.filter((item) => selected.has(item.value)).map((item) => item.label),
-        ];
-        if (allSelectedLabels.length === 0) {
+        const lockedCount = lockedSection
+          ? lockedSection.items.length + (lockedSection.hiddenCount ?? 0)
+          : 0;
+        const additionalCount = selected.size;
+        if (lockedCount === 0 && additionalCount === 0) {
           lines.push(`${S_BAR}  ${pc.dim('Selected: (none)')}`);
         } else {
-          const summary =
-            allSelectedLabels.length <= 3
-              ? allSelectedLabels.join(', ')
-              : `${allSelectedLabels.slice(0, 3).join(', ')} +${allSelectedLabels.length - 3} more`;
-          lines.push(`${S_BAR}  ${pc.green('Selected:')} ${summary}`);
+          const parts: string[] = [];
+          if (lockedCount > 0 && lockedSection) {
+            parts.push(`${pc.bold(String(lockedCount))} ${lockedSection.title}`);
+          }
+          if (additionalCount > 0) {
+            parts.push(`${pc.bold(String(additionalCount))} ${pc.dim('Additional agents')}`);
+          }
+          lines.push(`${S_BAR}  ${pc.green('Selected:')} ${parts.join(' + ')}`);
         }
 
         lines.push(`${pc.dim('└')}`);

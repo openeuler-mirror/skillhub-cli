@@ -55,6 +55,7 @@ export interface SearchSkill {
   slug: string;
   source: string;
   installs: number;
+  author?: string;
   description?: string;
   riskScore?: number;
   sourceUrl?: string;
@@ -269,6 +270,7 @@ export async function searchSkillsAPI(
         skill_id: string;
         name: string;
         description: string | null;
+        author: string | null;
         source: string;
         source_url: string;
         download_count: number;
@@ -280,6 +282,7 @@ export async function searchSkillsAPI(
       skill_id: string;
       name: string;
       description: string | null;
+      author: string | null;
       source: string;
       source_url: string;
       download_count: number;
@@ -299,6 +302,7 @@ export async function searchSkillsAPI(
     slug: sanitizeMetadata(skill.skill_id),
     source: sanitizeMetadata(skill.source || ''),
     installs: skill.download_count || 0,
+    author: skill.author ? sanitizeMetadata(skill.author) : undefined,
     description: skill.description ? sanitizeMetadata(skill.description) : undefined,
     riskScore: skill.risk_score ?? undefined,
     sourceUrl: skill.source_url ? sanitizeMetadata(skill.source_url) : undefined,
@@ -390,7 +394,7 @@ async function runSearchPrompt(
     } else if (results.length === 0) {
       lines.push(`${DIM}No skills found${RESET}`);
     } else {
-      // 每个结果 5 行（key: value 结构），条数过多会超出常见终端高度，
+      // 每个结果最多 6 行（key: value 结构），条数过多会超出常见终端高度，
       // 收敛到 6 条控制整体渲染高度
       const maxVisible = 6;
       const visible = results.slice(0, maxVisible);
@@ -406,6 +410,9 @@ async function runSearchPrompt(
 
         lines.push(`  ${arrow} ${kvKey('skill_name:')} ${name}${loadingIndicator}`);
         lines.push(`    ${kvKey('skill_id:')} ${CYAN}${skill.slug}${RESET}`);
+        if (skill.author) {
+          lines.push(`    ${kvKey('author:')} ${TEXT}${skill.author}${RESET}`);
+        }
         lines.push(`    ${kvKey('installs:')} ${CYAN}${formatInstalls(skill.installs)}${RESET}`);
         if (risk) {
           lines.push(`    ${kvKey('risk:')} ${risk}`);
@@ -549,12 +556,12 @@ export async function runFind(args: string[]): Promise<void> {
   const owner = findOptions.owner;
   const isNonInteractive = !process.stdin.isTTY;
   const agentTip = `${DIM}Tip: if running in a coding agent, follow these steps:${RESET}
-${DIM}  1) npx skillhub-cli find [query] [options]${RESET}
-${DIM}  2) npx skillhub-cli add <skill_id>${RESET}`;
+${DIM}  1) npx wittyhub find [query] [options]${RESET}
+${DIM}  2) npx wittyhub add <skill_id>${RESET}`;
 
   if (errors.length > 0) {
     for (const error of errors) console.error(error);
-    console.error('Usage: npx skillhub-cli find <query> [options]');
+    console.error('Usage: npx wittyhub find <query> [options]');
     return;
   }
 
@@ -580,7 +587,7 @@ ${DIM}  2) npx skillhub-cli add <skill_id>${RESET}`;
       return;
     }
 
-    console.log(`${DIM}Install with${RESET} npx skillhub-cli add ${TEXT}<skill_id>${RESET}`);
+    console.log(`${DIM}Install with${RESET} npx wittyhub add ${TEXT}<skill_id>${RESET}`);
     console.log();
 
     for (const skill of results.slice(0, 6)) {
@@ -589,6 +596,9 @@ ${DIM}  2) npx skillhub-cli add <skill_id>${RESET}`;
 
       console.log(`${BOLD}●${RESET} ${kvKey('skill_name:')} ${BOLD}${hlName}${RESET}`);
       console.log(`  ${kvKey('skill_id:')} ${CYAN}${skill.slug}${RESET}`);
+      if (skill.author) {
+        console.log(`  ${kvKey('author:')} ${TEXT}${skill.author}${RESET}`);
+      }
       console.log(`  ${kvKey('installs:')} ${CYAN}${formatInstalls(skill.installs)}${RESET}`);
       if (risk) {
         console.log(`  ${kvKey('risk:')} ${risk}`);
@@ -611,7 +621,7 @@ ${DIM}  2) npx skillhub-cli add <skill_id>${RESET}`;
   if (isNonInteractive || (await isRunningInAgent())) {
     console.log(agentTip);
     console.log();
-    console.log(`${DIM}Usage: npx skillhub-cli find <query> [options]${RESET}`);
+    console.log(`${DIM}Usage: npx wittyhub find <query> [options]${RESET}`);
     return;
   }
 
@@ -632,7 +642,7 @@ ${DIM}  2) npx skillhub-cli add <skill_id>${RESET}`;
   }
 
   // Install via skill_id — consistent with the identifier shown in search
-  // results and the recommended `skillhub-cli add <skill_id>` usage.
+  // results and the recommended `wittyhub add <skill_id>` usage.
   const skillId = selected.slug;
   const skillName = selected.name;
 

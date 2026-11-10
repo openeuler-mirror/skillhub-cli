@@ -6,9 +6,9 @@ import { parseFrontmatter } from './frontmatter.ts';
 // ─── validate command ───
 // 校验本地 skill 目录是否符合规范。
 // 用法：
-//   skillhub-cli validate <path-to-skill-dir-or-SKILL.md>
-//   skillhub-cli validate ./my-skill
-//   skillhub-cli validate ./my-skill/SKILL.md
+//   wittyhub validate <path-to-skill-dir-or-SKILL.md>
+//   wittyhub validate ./my-skill
+//   wittyhub validate ./my-skill/SKILL.md
 
 export interface ValidateOptions {
   json?: boolean;
@@ -86,7 +86,7 @@ export async function runValidate(args: string[]): Promise<ValidationResult | nu
     for (const e of errors) {
       console.error(pc.red(`error: ${e}`));
     }
-    console.error(`\nRun ${pc.cyan('skillhub-cli validate --help')} for usage.\n`);
+    console.error(`\nRun ${pc.cyan('wittyhub validate --help')} for usage.\n`);
     return null;
   }
 
@@ -147,7 +147,7 @@ export async function validateSkill(absPath: string): Promise<ValidationResult> 
         id: 'missing-skill-md',
         severity: 'error',
         message: `No SKILL.md found in directory: ${absPath}`,
-        hint: 'Create one with `skillhub-cli init <name>` or rename an existing markdown file to SKILL.md (uppercase).',
+        hint: 'Create one with `wittyhub init <name>` or rename an existing markdown file to SKILL.md (uppercase).',
       });
       return { path: absPath, errors, warnings, ok: false };
     }

@@ -5,8 +5,8 @@ import { normalizeSkillId } from './skill-resolver.ts';
 
 // ─── Audit command ───
 // 单独查看某个技能的安全审计结果（风险等级 + risk_signals）。
-//   skillhub-cli audit <skill_id>
-//   skillhub-cli audit github:vercel-labs/agent-skills/skills/deploy-to-vercel
+//   wittyhub audit <skill_id>
+//   wittyhub audit github:vercel-labs/agent-skills/skills/deploy-to-vercel
 
 export interface ParseAuditOptionsResult {
   skillId: string;
@@ -173,7 +173,7 @@ export async function runAudit(args: string[]): Promise<void> {
   const { skillId, errors } = parseAuditOptions(args);
   if (errors.length > 0) {
     for (const error of errors) console.error(pc.red(error));
-    console.error('Usage: skillhub-cli audit <skill_id>');
+    console.error('Usage: wittyhub audit <skill_id>');
     return;
   }
 

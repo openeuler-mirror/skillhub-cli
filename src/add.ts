@@ -276,7 +276,7 @@ async function resolveSkillId(
 }
 
 /**
- * Download a packaged skill archive from the SkillHub API and extract it
+ * Download a packaged skill archive from the wittyhub API and extract it
  * into a temporary directory. If `targetDir` is provided, extract into that
  * directory instead of creating a new one (used when downloading multiple
  * skills into the same temp dir).
@@ -357,7 +357,7 @@ function padEnd(str: string, width: number): string {
 }
 
 /**
- * Render a compact security table of skillhub-cli audit results.
+ * Render a compact security table of wittyhub audit results.
  * Returns the lines to display, or empty array if no data.
  */
 function buildSecurityLines(
@@ -1754,11 +1754,11 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
     console.log();
     console.log(pc.dim('  Usage:'));
     console.log(
-      `    ${pc.cyan('npx skillhub-cli add')} ${pc.yellow('<source>')} ${pc.dim('[options]')}`
+      `    ${pc.cyan('npx wittyhub add')} ${pc.yellow('<source>')} ${pc.dim('[options]')}`
     );
     console.log();
     console.log(pc.dim('  Example:'));
-    console.log(`    ${pc.cyan('npx skillhub-cli add')} ${pc.yellow('vercel-labs/agent-skills')}`);
+    console.log(`    ${pc.cyan('npx wittyhub add')} ${pc.yellow('vercel-labs/agent-skills')}`);
     console.log();
     process.exit(1);
   }
@@ -1814,7 +1814,7 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
     p.log.message(pc.yellow('Skills run with full agent permissions and could be malicious.'));
     console.log();
     p.log.message(
-      `If you understand the risks, re-run with:\n\n  ${pc.cyan(`npx skillhub-cli add ${source} --dangerously-accept-openclaw-risks`)}\n`
+      `If you understand the risks, re-run with:\n\n  ${pc.cyan(`npx wittyhub add ${source} --dangerously-accept-openclaw-risks`)}\n`
     );
     p.outro(pc.red('Installation blocked'));
     process.exit(1);
@@ -1862,7 +1862,7 @@ export async function runAdd(args: string[], options: AddOptions = {}): Promise<
     }
 
     // Step 1+2 (replaced): resolve `source` to skill_id(s), then download
-    // packaged archive(s) from the SkillHub API. The ZIP is extracted into a
+    // packaged archive(s) from the wittyhub API. The ZIP is extracted into a
     // temp dir and fed into the existing discoverSkills flow.
     //
     // Three input forms are supported:
@@ -2805,13 +2805,13 @@ async function promptForFindSkills(
         });
       } catch {
         p.log.warn('Failed to install find-skills. You can try again with:');
-        p.log.message(pc.dim('  npx skillhub-cli add vercel-labs/skills@find-skills -g -y --all'));
+        p.log.message(pc.dim('  npx wittyhub add vercel-labs/skills@find-skills -g -y --all'));
       }
     } else {
       // User declined - dismiss the prompt
       await dismissPrompt('findSkillsPrompt');
       p.log.message(
-        pc.dim('You can install it later with: npx skillhub-cli add vercel-labs/skills@find-skills')
+        pc.dim('You can install it later with: npx wittyhub add vercel-labs/skills@find-skills')
       );
     }
   } catch {
